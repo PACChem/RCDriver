@@ -10,8 +10,15 @@ Contents:
 
 .. toctree::
    :maxdepth: 2
-.. module:: torsionalscan
-.. class::  Tscan
+.. automodule::  torsional_scan
+.. autoclass::  Tscan
+   :members:
+.. automodule::  build
+.. autoclass::   REAC
+   :members:
+.. autoclass::   THEORY
+   :members:
+.. autoclass::   ESTOKTP
    :members:
 
 

@@ -76,6 +76,6 @@ class Tscan:
         
         return
 
-run = Tscan()
-run.build_subdirs()
-run.build_files()
+#run = Tscan()
+#run.build_subdirs()
+#run.build_files()
