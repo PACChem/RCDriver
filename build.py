@@ -16,7 +16,7 @@ class REAC:
         self.nsamps     = '0'    #number of MonteCarlo sampling points
         ######################################
 
-        self.cart       = os.getcwd() + '/' + stoich + '.inp'
+        self.cart       = os.getcwd() + '/../' + stoich + '.inp'
         self.convert    = '~/Tscan/TorsScan/test_chem'
         self.tempfile   = 'tempfile'
         self.zmat       = 'reac1.dat'
