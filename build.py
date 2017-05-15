@@ -11,13 +11,13 @@ class REAC:
         self.stoic      = stoich #Name of molecule
         self.charge     = 0      #Charge
         self.mult       = 1      #Multiplicity
-        self.interval   = '360'  #Interval for torsional scan (should be same geometry as 0 degree)
-        self.nsteps     = '10'   #Number of points to take on PES
-        self.nsamps     = '0'    #number of MonteCarlo sampling points
+        self.interval   = 360    #Interval for torsional scan (should be same geometry as 0 degree)
+        self.nsteps     = '4'    #Number of points to take on PES
+        self.nsamps     = '5'    #number of MonteCarlo sampling points
         ######################################
 
         self.cart       = os.getcwd() + '/../' + stoich + '.inp'
-        self.convert    = '~/Tscan/TorsScan/test_chem'
+        self.convert    = '~/TorsScan/test_chem'
         self.tempfile   = 'tempfile'
         self.zmat       = 'reac1.dat'
 
@@ -112,6 +112,27 @@ class REAC:
 
        return atoms, measure, angles
 
+    def find_period(self,zmat,hin):
+       """
+       Rough way of determining internal symmetry number (Hydrogen counting)
+       """
+       sym1 = sym2 = k = 0
+       for i, row in enumerate(zmat[3:]):
+           if hin.upper() in row[6]:
+               k = i
+
+       atom1 = zmat[k][1]
+       atom2 = zmat[k][3]
+
+       for row in zmat[1:]:
+           if atom1 in row[1]:
+               if 'h' in row[0]:
+                   sym1 += 1
+           elif atom2 in row[1]:
+               if 'h' in row[0]:
+                   sym2 += 1
+       return max(sym1,sym2)
+
     def build_zmat(self):
        """ 
        Builds reac1.dat for EStokTP withh user defined nosmps (Monte Carlo sampling points
@@ -131,16 +152,17 @@ class REAC:
        zmat.write(str(len(angles)) + '\n')
        zmat.write(' -->nametau, taumin, taumax\n') 
        for angle in angles:
-           zmat.write(angle + ' 0 ' + self.interval + '\n')       
+           periodicity = self.find_period(atoms, angle)
+           zmat.write(angle + ' 0 ' + str(self.interval/periodicity) + '\n')       
 
        hind = angles
-       periodicity = '3'
 
        zmat.write('\nnhind\n')
        zmat.write(str(len(angles)) + '\n')
        zmat.write(' -->namehind,hindmin,hindmax,nhindsteps,period\n') 
        for hin in hind:
-           zmat.write(hin + ' 0 ' + self.interval + ' ' + self.nsteps + ' ' + periodicity  + '\n')     
+           periodicity = self.find_period(atoms, hin)
+           zmat.write(hin + ' 0 ' + str(self.interval/periodicity) + ' ' + self.nsteps + ' ' + str(periodicity)  + '\n')     
            for i,meas in enumerate(measure):
                if hin.lower().strip() == meas[0].lower().strip(): #
                    measure = np.array([np.delete(measure.T[0],i),np.delete(measure.T[1],i)]).T
@@ -185,13 +207,14 @@ class THEORY:
        """
        theory  = open('theory.dat','w')
    
-       level = (' level0', ' level1', ' hind_rotor',' symmetry')
-       for lev in range(4):
+       #level = (' level0', ' level1', ' hind_rotor',' symmetry')
+       level = (' level0',  ' hind_rotor')
+       for lev in range(len(level)):
            theory.write(level[lev] + ' ' + self.prog[lev] + '\n ')
            theory.write(self.meth[lev] + ' opt=internal\n')
            theory.write(' int=ultrafine nosym ' + self.oth[lev]+'\n\n')
 
-       theory.write(' hlevel ' + self.prog[4] + '\n\n')
+       #theory.write(' hlevel ' + self.prog[len(level)] + '\n\n')
        theory.write('End')
 
        theory.close
@@ -212,7 +235,7 @@ class ESTOKTP:
        for job in self.jobs:
            est.write('\n ' + job)
        est.write('\nEnd')
-       est.write('\n 12,4\n numprocll,numprochl\n')
+       est.write('\n 6,4\n numprocll,numprochl\n')
        est.write(' 200MW  300MW\n gmemll gmemhl\n')
        est.close
        return 

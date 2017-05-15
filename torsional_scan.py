@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/soft/python/2.6.4/bin/python
 
 import os
 import sys
@@ -12,17 +12,21 @@ class Tscan:
 
         ####USER INPUTS###############################
         #stoichiometry       
-        self.mol  = 'c3h6ooh'
+        #self.mol  = 'c3h6ooh'
+        self.mol  = os.getcwd().split('/')[-1]
         #program for torsional scan at level 1
         prog  = 'g09'
         #method  for torsional scan at level 1
-        meth  = 'm062x/6-311+g(d,p)'
+        meth  = 'b3lyp/6-311+g(d,p)'
         #list the things you want EStokTP to do:
-        self.jobs  = ('Opt_React1','Opt_React1_1','1dTau_Reac1','kTP')
+        #self.jobs  = ('Opt_React1','Opt_React1_1','1dTau_Reac1','kTP')
+        self.jobs  = ('Opt_React1','1dTau_Reac1')
         ############################################
 
-        self.prog = ('g09',prog,'g09','g09','molpro')
-        self.meth = ('b3lyp/6-31+g(d,p)', meth,'b3lyp/6-31+g(d,p)','b3lyp/6-31+g(d,p)')
+        #self.prog = ('g09',prog,'g09','g09','molpro')
+        self.prog = ('g09',prog)
+        self.meth = ('b3lyp/6-31+g(d,p)', meth)
+        #self.meth = ('b3lyp/6-31+g(d,p)', meth,'b3lyp/6-31+g(d,p)','b3lyp/6-31+g(d,p)')
        
     def build_subdirs(self):
         
