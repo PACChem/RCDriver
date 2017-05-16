@@ -18,7 +18,7 @@
 
 import os
 import sys
-sys.path.insert(0, "~/TorsScan")
+sys.path.insert(0, "~/Packages/TorsScan")
 
 # -- General configuration ------------------------------------------------
 
