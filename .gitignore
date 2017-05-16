@@ -1,3 +1,6 @@
 *.pyc
-/data
-/output
+data
+output
+docs/_build
+docs/_static
+docs/_templates

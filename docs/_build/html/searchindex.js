@@ -1,1 +1,0 @@
-Search.setIndex({envversion:49,filenames:["index"],objects:{"":{torsionalscan:[0,0,0,"-"]}},objnames:{"0":["py","module","Python module"]},objtypes:{"0":"py:module"},terms:{content:0,index:0,modul:0,page:0,search:0},titles:["Welcome to TorsScan&#8217;s documentation!"],titleterms:{document:0,indice:0,tabl:0,torsscan:0,welcom:0}})
