@@ -1,0 +1,15 @@
+Molecule name (SMILE): C-C-C
+
+---------------EStoKTP------------------------- 
+  Level   :    Program    :      Theory
+-----------------------------------------------
+Level 0   :      g09      : b3lyp/6-31+g(d,p)
+Level 1   :               : 
+Hind_Rotor:      g09      : b3lyp/6-31+g(d,p)
+Symmetry  :               :
+High Level:               :
+-----------------------------------------------
+
+No. MC  sampling points: 2
+Scan interval (degrees): 360
+No. of steps on the PES: 4

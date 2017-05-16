@@ -3,24 +3,54 @@
 import os
 import re
 import numpy as np
+import sys
+sys.path.insert(0, '../QTC')
+import obtools as ob
 
 class REAC:
-    def __init__(self,stoich):
-        
+    def __init__(self,smile,opts):
+       
+       
         #OPTIONS##############################
-        self.stoic      = stoich #Name of molecule
-        self.charge     = 0      #Charge
-        self.mult       = 1      #Multiplicity
-        self.interval   = 360    #Interval for torsional scan (should be same geometry as 0 degree)
-        self.nsteps     = '4'    #Number of points to take on PES
-        self.nsamps     = '5'    #number of MonteCarlo sampling points
+        self.nsamps     = opts[0]    #number of MonteCarlo sampling points
+        self.interval   = opts[1]    #Interval for tors scan (should be same geometry as 0 degree)
+        self.nsteps     = opts[2]    #Number of points to take on PES
         ######################################
-
-        self.cart       = os.getcwd() + '/../' + stoich + '.inp'
-        self.convert    = '~/Packages/TorsScan/test_chem'
-        self.tempfile   = 'tempfile'
+ 
+        self.smile      = smile  #Name of molecule
+        self.cart       = os.getcwd() + '/' +  smile + '.xyz'
+        self.convert    = '~/projects/anl/TorsScan/test_chem'
         self.zmat       = 'reac1.dat'
 
+    def build_cart(self):
+       """
+       Uses QTC interface by Murat Keceli to Openbabel to generate cartesian coorinate file based 
+       on SMILE string
+       """
+       mol = ob.get_mol(self.smile)
+       self.charge = ob.get_charge(mol)
+       self.mult   = ob.get_multiplicity(mol)
+       self.stoich = ob.get_formula(mol)
+
+       temp = open('temp','w')
+       temp.write(ob.get_xyz(mol) )
+       temp.close
+
+       cart = open(self.smile+'.xyz','w')
+       temp = open('temp','r')
+
+       cart.write('Geometry ' + temp.readline().strip('\n') + ' Angstrom')
+       for line in temp:
+           cart.write(line)
+
+       cart.close
+       temp.close
+       os.remove('temp')
+
+       return
+
+    def get_stoich(self):
+       return self.stoich
 
     def read_cart(self): 
        """
@@ -31,16 +61,18 @@ class REAC:
        atoms   = []
        measure = []
        angles  = 0
+       self.build_cart()
 
        #open cartesian input file
-       os.system(self.convert + ' ' + self.cart + ' > ' + self.tempfile)
+       tempfile = 'temp'
+       os.system(self.convert + ' ' + self.cart + ' > ' + tempfile)
 
-       if os.stat(self.tempfile).st_size == 0:
+       if os.stat(tempfile).st_size == 0:
            print('failed')
            print('Please check that directory name and cartesian coordinate file name are equivalent')
            return atoms, measure, angles
 
-       file = open(self.tempfile,'r')
+       file = open(tempfile,'r')
        
        collect = 0
 
@@ -85,7 +117,7 @@ class REAC:
                    self.beta = re.search("Beta-scission bonds: (\w+)", line).groups()[0]
 
        file.close
-       os.remove(self.tempfile)
+       os.remove(tempfile)
 
        if self.ilin == 'nonlinear':
            self.ilin = ' 0'
@@ -140,7 +172,7 @@ class REAC:
                    sym2 += 1
        return max(sym1,sym2)
 
-    def build_zmat(self):
+    def build(self):
        """ 
        Builds reac1.dat for EStokTP withh user defined nosmps (Monte Carlo sampling points
        for geometry search) and nhindsteps (number of points on the PES) 
@@ -201,45 +233,45 @@ class REAC:
        return 
 
 class THEORY:
-    def __init__(self,prog,meth):
+    def __init__(self,meth):
        start = 0
-       self.prog = prog
        self.meth = meth
        self.oth  = ('','freq','','')
  
-    def build_theory(self):
+    def build(self):
        """
        Builds theory.dat 
        """
        theory  = open('theory.dat','w')
-   
-       #level = (' level0', ' level1', ' hind_rotor',' symmetry')
-       level = (' level0',  ' hind_rotor')
-       for lev in range(len(level)):
-           theory.write(level[lev] + ' ' + self.prog[lev] + '\n ')
-           theory.write(self.meth[lev] + ' opt=internal\n')
-           theory.write(' int=ultrafine nosym ' + self.oth[lev]+'\n\n')
+       meth    = self.meth
+       level = (' level0', ' level1', ' hind_rotor',' symmetry')
+       for i,lev in enumerate(level):
+           if meth[i][1] != '':
+               theory.write(lev + ' ' + meth[i][0] + '\n ')
+               theory.write(self.meth[i][1] + ' opt=internal\n')
+               theory.write(' int=ultrafine nosym ' + self.oth[i]+'\n\n')
 
-       #theory.write(' hlevel ' + self.prog[len(level)] + '\n\n')
        theory.write('End')
 
        theory.close
        return 
 
 class ESTOKTP:
-    def __init__(self,stoich,jobs):
-        self.stoich = stoich
-        self.jobs   = jobs
+    def __init__(self,stoich,methods):
+        self.stoich  = stoich
+        self.methods = methods
                  
-    def build_estoktp(self):
+    def build(self):
        """
        Builds esktoktp.dat
        """
+       jobs  = ('Opt_React1','Opt_React1_1','1dTau_Reac1','HL_Reac1','Symm_reac1','kTP')
        est  = open('estoktp.dat','w')
        est.write(' Stoichiometry\t' + self.stoich.upper())
        est.write('\n Debug  2')
-       for job in self.jobs:
-           est.write('\n ' + job)
+       for i,meth in enumerate(self.methods):
+           if meth[1] != '':
+               est.write('\n ' + jobs[i])
        est.write('\nEnd')
        est.write('\n 10,6\n numprocll,numprochl\n')
        est.write(' 200MW  300MW\n gmemll gmemhl\n')
