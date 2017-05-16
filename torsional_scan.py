@@ -77,7 +77,7 @@ class Tscan:
         
         return
 \
-run = Tscan('b431')
-run.build_subdirs()
-run.build_files()
-run.execute()
+#run = Tscan('b431')
+#run.build_subdirs()
+#run.build_files()
+#run.execute()
