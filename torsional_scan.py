@@ -8,7 +8,7 @@ sys.path.insert(0, './bin')
 import build
 
 class Tscan:
-    def __init__(self):
+    def __init__(self,node):
 
         ####USER INPUTS###############################
         #stoichiometry       
@@ -26,6 +26,7 @@ class Tscan:
         #self.prog = ('g09',prog,'g09','g09','molpro')
         self.prog = ('g09',prog)
         self.meth = ('b3lyp/6-31+g(d,p)', meth)
+        self.node = node
         #self.meth = ('b3lyp/6-31+g(d,p)', meth,'b3lyp/6-31+g(d,p)','b3lyp/6-31+g(d,p)')
        
     def build_subdirs(self):
@@ -67,15 +68,16 @@ class Tscan:
 
         return
   
-    def execute():
+    def execute(self):
         
         """
         Runs EStokTP
         """
-        os.system('PATH/TO/EStokTP')
+        os.system('~/bin/run_estoktp.com ' + self.node)
         
         return
-
-run = Tscan()
+\
+run = Tscan('b431')
 run.build_subdirs()
 run.build_files()
+run.execute()

@@ -17,7 +17,7 @@ class REAC:
         ######################################
 
         self.cart       = os.getcwd() + '/../' + stoich + '.inp'
-        self.convert    = '~/TorsScan/test_chem'
+        self.convert    = '~/Packages/TorsScan/test_chem'
         self.tempfile   = 'tempfile'
         self.zmat       = 'reac1.dat'
 
@@ -27,14 +27,21 @@ class REAC:
        Runs Test_Chem by Yuri Georgievski on a file of Cartesian coordinates and collects
        the internal coordinate and torsional angle information that it outputs
        """
-       #open cartesian input file
-       os.system(self.convert + ' ' + self.cart + ' > ' + self.tempfile)
-       file = open(self.tempfile,'r')
-       
        #initialize
        atoms   = []
        measure = []
        angles  = 0
+
+       #open cartesian input file
+       os.system(self.convert + ' ' + self.cart + ' > ' + self.tempfile)
+
+       if os.stat(self.tempfile).st_size == 0:
+           print('failed')
+           print('Please check that directory name and cartesian coordinate file name are equivalent')
+           return atoms, measure, angles
+
+       file = open(self.tempfile,'r')
+       
        collect = 0
 
        for line in file:
@@ -136,8 +143,7 @@ class REAC:
     def build_zmat(self):
        """ 
        Builds reac1.dat for EStokTP withh user defined nosmps (Monte Carlo sampling points
-       for geometry search), interval (degrees scanned for torsional scan), nhindsteps (number of
-       points on the PES) 
+       for geometry search) and nhindsteps (number of points on the PES) 
        """
        zmat  = open(self.zmat,'w')
        atoms, measure, angles = self.update_interns()
@@ -235,7 +241,7 @@ class ESTOKTP:
        for job in self.jobs:
            est.write('\n ' + job)
        est.write('\nEnd')
-       est.write('\n 6,4\n numprocll,numprochl\n')
+       est.write('\n 10,6\n numprocll,numprochl\n')
        est.write(' 200MW  300MW\n gmemll gmemhl\n')
        est.close
        return 
