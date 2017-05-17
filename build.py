@@ -4,13 +4,13 @@ import os
 import re
 import numpy as np
 import sys
-sys.path.insert(0, '../QTC')
-import obtools as ob
 
 class REAC:
     def __init__(self,smile,opts):
        
-       
+        self.QTC = opts[3]#if QTC, openbabel, and pybel are not importable, self.QTC = 'False' 
+                          #be sure to have cartesian <SMILE string>.xyz in data/ (ex. C-C-C.xyz)
+      
         #OPTIONS##############################
         self.nsamps     = opts[0]    #number of MonteCarlo sampling points
         self.interval   = opts[1]    #Interval for tors scan (should be same geometry as 0 degree)
@@ -27,6 +27,9 @@ class REAC:
        Uses QTC interface by Murat Keceli to Openbabel to generate cartesian coorinate file based 
        on SMILE string
        """
+       sys.path.insert(0, '../../QTC')
+       import obtools as ob
+
        mol = ob.get_mol(self.smile)
        self.charge = ob.get_charge(mol)
        self.mult   = ob.get_multiplicity(mol)
@@ -61,7 +64,13 @@ class REAC:
        atoms   = []
        measure = []
        angles  = 0
-       self.build_cart()
+
+       if self.QTC.lower() == 'true':
+           self.build_cart()
+       else: #we assume an xyz is given and hope default charge/mult work
+           self.charge = 0
+           self.mult   = 1
+           self.stoich = self.smile
 
        #open cartesian input file
        tempfile = 'temp'
@@ -233,9 +242,10 @@ class REAC:
        return 
 
 class THEORY:
-    def __init__(self,meth):
+    def __init__(self,meth,jobs):
        start = 0
        self.meth = meth
+       self.jobs = jobs
        self.oth  = ('','freq','','')
  
     def build(self):
@@ -244,10 +254,10 @@ class THEORY:
        """
        theory  = open('theory.dat','w')
        meth    = self.meth
-       level = (' level0', ' level1', ' hind_rotor',' symmetry')
-       for i,lev in enumerate(level):
+       jobs    = self.jobs
+       for i,job in enumerate(jobs):
            if meth[i][1] != '':
-               theory.write(lev + ' ' + meth[i][0] + '\n ')
+               theory.write(job + ' ' + meth[i][0] + '\n ')
                theory.write(self.meth[i][1] + ' opt=internal\n')
                theory.write(' int=ultrafine nosym ' + self.oth[i]+'\n\n')
 
@@ -265,7 +275,7 @@ class ESTOKTP:
        """
        Builds esktoktp.dat
        """
-       jobs  = ('Opt_React1','Opt_React1_1','1dTau_Reac1','HL_Reac1','Symm_reac1','kTP')
+       jobs  = ('Opt_Reac1','Opt_Reac1_1','1dTau_Reac1','HL_Reac1','Symm_reac1','kTP')
        est  = open('estoktp.dat','w')
        est.write(' Stoichiometry\t' + self.stoich.upper())
        est.write('\n Debug  2')

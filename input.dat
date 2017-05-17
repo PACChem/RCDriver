@@ -1,15 +1,28 @@
+============
+QTC options 
+============
 Molecule name (SMILE): C-C-C
+Use QTC (provide .xyz file in data if false): True
+        (use 'skip' to skip to submission)
 
----------------EStoKTP------------------------- 
-  Level   :    Program    :      Theory
------------------------------------------------
-Level 0   :      g09      : b3lyp/6-31+g(d,p)
-Level 1   :               : 
-Hind_Rotor:      g09      : b3lyp/6-31+g(d,p)
-Symmetry  :               :
-High Level:               :
------------------------------------------------
+==============
+BLUES options   
+==============
+Run on node (0 if on login, d to debug): d
 
+
+================
+EStoKTP options
+================
 No. MC  sampling points: 2
 Scan interval (degrees): 360
 No. of steps on the PES: 4
+------------------------------------------------ 
+  Level   :    Program    :      Theory
+------------------------------------------------
+level0    :      g09      : b3lyp/6-31+g(d,p) 
+level1    :               : 
+hind_rotor:      g09      : b3lyp/6-31+g(d,p)
+symmetry  :               :
+hlevel    :               :
+------------------------------------------------
