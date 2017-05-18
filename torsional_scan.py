@@ -2,11 +2,11 @@
 
 import os
 import sys
-import re
+import build
 
 sys.path.insert(0, './bin')
-
-import build
+sys.path.insert(0, '/home/elliott/Packages/QTC/')
+import iotools as io
 
 class Tscan:
     def __init__(self):
@@ -24,40 +24,39 @@ class Tscan:
         #self.jobs  = ('Opt_React1','Opt_React1_1','1dTau_Reac1','kTP')
        
     def get_options(self):
-
-        options = open('input.dat','r')
+        #clean this up when we decide what input should look like
+        options = io.read_file('input.dat').split('\n')
         for opts in options:
 
             if   'node'      in opts:
-                self.node     = opts.split(':')[1].strip('\n').strip()
+                self.node     = self.get_val(opts,1)
             elif 'Use QTC'   in opts:
-                self.QTC      = opts.split(':')[1].strip('\n').strip()
+                self.QTC      = self.get_val(opts,1)
             elif 'Molecule'  in opts:
-                self.mol      = opts.split(':')[1].strip('\n').strip()
+                self.mol      = self.get_val(opts,1)
             elif 'sampling'  in opts:
-                self.nsamps   = opts.split(':')[1].strip('\n').strip()
+                self.nsamps   = self.get_val(opts,1)
             elif 'interval'  in opts:
-                self.interval = int(opts.split(':')[1].strip('\n'))
+                self.interval = self.get_val(opts,1)
             elif 'steps'     in opts:
-                self.nstepsm  = opts.split(':')[1].strip('\n').strip()
+                self.nsteps   = self.get_val(opts,1)
 
             elif 'level0'    in opts:
-                self.meth[0] = [opts.split(':')[1].strip(),opts.split(':')[2].strip('\n').strip()]
-                self.jobs[0] = opts.split(':')[0].strip()
+                self.meth[0] = [self.get_val(opts,1,'false'),self.get_val(opts,2)]
+                self.jobs[0] =  self.get_val(opts,0)
             elif 'level1'    in opts:
-                self.meth[1] = [opts.split(':')[1].strip(),opts.split(':')[2].strip('\n').strip()]
-                self.jobs[1] = opts.split(':')[0].strip()
+                self.meth[1] = [self.get_val(opts,1,'false'),self.get_val(opts,2)]
+                self.jobs[1] =  self.get_val(opts,0)
             elif 'hind_rotor'in opts:
-                self.meth[2] = [opts.split(':')[1].strip(),opts.split(':')[2].strip('\n').strip()]
-                self.jobs[2] = opts.split(':')[0].strip()
+                self.meth[2] = [self.get_val(opts,1,'false'),self.get_val(opts,2)]
+                self.jobs[2] =  self.get_val(opts,0)
             elif 'symmetry'  in opts:
-                self.meth[3] = [opts.split(':')[1].strip(),opts.split(':')[2].strip('\n').strip()]
-                self.jobs[3] = opts.split(':')[0].strip()
+                self.meth[3] = [self.get_val(opts,1,'false'),self.get_val(opts,2)]
+                self.jobs[3] =  self.get_val(opts,0)
             elif 'hlevel'    in opts:
-                self.meth[4] = [opts.split(':')[1].strip(),opts.split(':')[2].strip('\n').strip()]
-                self.jobs[4] = opts.split(':')[0].strip()
+                self.meth[4] = [self.get_val(opts,1,'false'),self.get_val(opts,2)]
+                self.jobs[4] =  self.get_val(opts,0)
 
-        options.close
         return
        
     def build_subdirs(self):
@@ -122,17 +121,61 @@ class Tscan:
         print('completed')
         return
 
-    def extract(self):
+    def build_mess(self):
         """
-        Extracts necessary EStokTP output for MESS
+        Compiles together the mess data extracted from EStokTP computations
+        to form an mess input file
         """
         print('Task: Extracting data for MESS...')
         if not os.path.exists('me_files'):
             print('failed -- me_files not found, check estoktp.log')
             return
+
+        #Copy first section of QTC pf file
+        pfqtc = self.extract_mess(self.mol + '.pf').split('\n')
+        pf   = ''
+        for line in pfqtc:
+            #if line == 'Frequencies': #use QTC geometry
+            #   break
+            if "Species" in line: #Use EStokTP geometry
+               break
+            pf += line + '\n'
+        
         os.chdir('me_files')
+        #EStokTP geometry
+        ge = self.extract_mess('reac1_1dge.me')
+        ge = " Species" +  ge.split("Species")[1]
+        #Use EStokTP hr data
+        hr = self.extract_mess('reac1_hr.me')
+        #Use EStokTP frequencies (projected out scanned torsional modes)
+        fr = self.extract_mess('reac1_fr.me')
+
+        pf += ge + hr + fr
+        os.chdir('..')
+        io.write_file(pf,'new_' + self.mol + '.pf')
+
         return
-    
+
+    def extract_mess(self,filename):
+        """
+        Extracts necessary EStokTP output for MESS
+        """
+        lines = io.read_file(filename)
+        if lines == '':
+            print('failed -- ' + filename + ' is empty, check estoktp.log')
+        return lines
+
+    def get_val(self,opt,result,endl = 'True'):
+        """
+        Gets values we care about from a line of input file
+        """
+        if endl == 'True':
+            return opt.split(':')[result].strip('\n').strip()
+        else:
+            return opt.split(':')[result].strip()
+       
+
+
 if __name__ == "__main__":
 
     run = Tscan()
