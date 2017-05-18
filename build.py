@@ -1,9 +1,10 @@
 #!/usr/bin/python
 
 import os
-import re
 import numpy as np
 import sys
+
+sys.path.insert(0, '/home/elliott/Packages/QTC/')
 
 class REAC:
     def __init__(self,smile,opts):
@@ -19,7 +20,8 @@ class REAC:
  
         self.smile      = smile  #Name of molecule
         self.cart       = os.getcwd() + '/' +  smile + '.xyz'
-        self.convert    = '~/projects/anl/TorsScan/test_chem'
+        self.convert    = '~/Packages/TorsScan/test_chem'
+        #self.convert    = '~/projects/anl/TorsScan/test_chem'
         self.zmat       = 'reac1.dat'
 
     def build_cart(self):
@@ -27,28 +29,18 @@ class REAC:
        Uses QTC interface by Murat Keceli to Openbabel to generate cartesian coorinate file based 
        on SMILE string
        """
-       sys.path.insert(0, '../../QTC')
        import obtools as ob
-
+       import iotools as io
+       
        mol = ob.get_mol(self.smile)
        self.charge = ob.get_charge(mol)
        self.mult   = ob.get_multiplicity(mol)
        self.stoich = ob.get_formula(mol)
 
-       temp = open('temp','w')
-       temp.write(ob.get_xyz(mol) )
-       temp.close
-
-       cart = open(self.smile+'.xyz','w')
-       temp = open('temp','r')
-
-       cart.write('Geometry ' + temp.readline().strip('\n') + ' Angstrom')
-       for line in temp:
-           cart.write(line)
-
-       cart.close
-       temp.close
-       os.remove('temp')
+       lines =  ob.get_xyz(mol).split('\n')
+       lines[0] = 'Geometry ' + lines[0] + ' Angstrom'
+       del lines[1]
+       io.write_file('\n'.join(lines), self.smile + '.xyz')
 
        return
 
@@ -60,10 +52,13 @@ class REAC:
        Runs Test_Chem by Yuri Georgievski on a file of Cartesian coordinates and collects
        the internal coordinate and torsional angle information that it outputs
        """
+       import re
+       import iotools as io
+
        #initialize
        atoms   = []
        measure = []
-       angles  = 0
+       angles  = []
 
        if self.QTC.lower() == 'true':
            self.build_cart()
@@ -79,14 +74,14 @@ class REAC:
        if os.stat(tempfile).st_size == 0:
            print('failed')
            print('Please check that directory name and cartesian coordinate file name are equivalent')
+           print('Please check that test_chem is in location: ' +  self.convert)
            return atoms, measure, angles
-
-       file = open(tempfile,'r')
        
+       lines = io.read_file(tempfile).split('\n')
+ 
        collect = 0
 
-       for line in file:
-
+       for line in lines:
            #exits loop if the converter failed
            if 'terminate' in line:
                return 0,0,0
@@ -96,7 +91,8 @@ class REAC:
                
                #record angles to scan
                if 'Rot' in line:
-                   angles  = line.split(':')[1].rstrip('\n').split(',')
+                   if line.split(':')[1].rstrip('\n').strip() != '':
+                       angles  = line.split(':')[1].rstrip('\n').strip().split(',')
                    #Reach end of ZMAT, stop collection
                    break
                measure.extend(line.replace('=',' ').rstrip('\n').split())
@@ -121,7 +117,7 @@ class REAC:
                if "symmetry number" in line:
                    self.symnum = re.search("symmetry number = (\w+)", line).groups()[0]
                
-               #Symmetry factor
+               #Beta-scission, may use eventually
                if "Beta-scission" in line:
                    self.beta = re.search("Beta-scission bonds: (\w+)", line).groups()[0]
 
@@ -186,58 +182,56 @@ class REAC:
        Builds reac1.dat for EStokTP withh user defined nosmps (Monte Carlo sampling points
        for geometry search) and nhindsteps (number of points on the PES) 
        """
-       zmat  = open(self.zmat,'w')
+       import iotools as io
+
        atoms, measure, angles = self.update_interns()
-         
        #Stochastic Geometry Search############
-       zmat.write('nosmp dthresh ethresh\n')      
-       zmat.write(self.nsamps + '  1.0  0.00001\n')
+       zmatstring  = 'nosmp dthresh ethresh\n'     
+       zmatstring += self.nsamps + '  1.0  0.00001\n'
 
 
        #Torsional Scan Parameters#############
-       zmat.write('\nntau number of sampled coordinates\n')
-       zmat.write(str(len(angles)) + '\n')
-       zmat.write(' -->nametau, taumin, taumax\n') 
+       zmatstring += '\nntau number of sampled coordinates\n'
+       zmatstring += str(len(angles)) + '\n'
+       zmatstring += ' -->nametau, taumin, taumax\n'
        for angle in angles:
            periodicity = self.find_period(atoms, angle)
-           zmat.write(angle + ' 0 ' + str(self.interval/periodicity) + '\n')       
+           zmatstring += angle + ' 0 ' + str(self.interval/periodicity) + '\n'
 
        hind = angles
 
-       zmat.write('\nnhind\n')
-       zmat.write(str(len(angles)) + '\n')
-       zmat.write(' -->namehind,hindmin,hindmax,nhindsteps,period\n') 
+       zmatstring += '\nnhind\n'
+       zmatstring += str(len(angles)) + '\n'
+       zmatstring += ' -->namehind,hindmin,hindmax,nhindsteps,period\n'
        for hin in hind:
            periodicity = self.find_period(atoms, hin)
-           zmat.write(hin + ' 0 ' + str(self.interval/periodicity) + ' ' + self.nsteps + ' ' + str(periodicity)  + '\n')     
+           zmatstring += hin + ' 0 ' + str(self.interval/periodicity) + ' ' + self.nsteps + ' ' + str(periodicity)  + '\n'   
            for i,meas in enumerate(measure):
                if hin.lower().strip() == meas[0].lower().strip(): #
                    measure = np.array([np.delete(measure.T[0],i),np.delete(measure.T[1],i)]).T
        #Size and linearity of molecule###########
-       zmat.write('\nnatom natomt ilin\n')
-       zmat.write(str(len(atoms)) + ' ' + str(len(atoms)) + self.ilin + '\n')
-
+       zmatstring += '\nnatom natomt ilin\n'
+       zmatstring += str(len(atoms)) + ' ' + str(len(atoms)) + self.ilin + '\n'
 
        #Typical Z-Matrix########################
-       zmat.write('\ncharge  spin  atomlabel\n')
-       zmat.write(str(self.charge) + ' ' + str(self.mult) + '\n')
+       zmatstring += '\ncharge  spin  atomlabel\n'
+       zmatstring += str(self.charge) + ' ' + str(self.mult) + '\n'
 
        for row in atoms:
            for j in range(len(row)):
-               zmat.write(row[j] + ' ')
-           zmat.write('\n')
+               zmatstring += row[j] + ' '
+           zmatstring +='\n'
     
-       zmat.write('\nintcoor')
+       zmatstring += '\nintcoor'
 
        for meas in measure:
-           zmat.write('\n' + meas[0] + ' ' + meas[1])
+           zmatstring += '\n' + meas[0] + ' ' + meas[1]
 
        #Sym factor and no. of electronic states#
-       zmat.write('\n\nSymmetryFactor\n' + self.symnum + '\n')
-       zmat.write('\nnelec\n1\n 0.  1.\n\nend\n')
+       zmatstring += '\n\nSymmetryFactor\n' + self.symnum + '\n'
+       zmatstring += '\nnelec\n1\n 0.  1.\n\nend\n'
 
-
-       zmat.close
+       io.write_file(zmatstring, self.zmat)
 
        return 
 
@@ -252,18 +246,22 @@ class THEORY:
        """
        Builds theory.dat 
        """
-       theory  = open('theory.dat','w')
+       import iotools as io
+
        meth    = self.meth
        jobs    = self.jobs
+       theory  = ''
+
        for i,job in enumerate(jobs):
            if meth[i][1] != '':
-               theory.write(job + ' ' + meth[i][0] + '\n ')
-               theory.write(self.meth[i][1] + ' opt=internal\n')
-               theory.write(' int=ultrafine nosym ' + self.oth[i]+'\n\n')
+               theory += job + ' ' + meth[i][0] + '\n '
+               theory += self.meth[i][1] + ' opt=internal\n'
+               theory += ' int=ultrafine nosym ' + self.oth[i]+'\n\n'
 
-       theory.write('End')
+       theory += 'End'
 
-       theory.close
+       io.write_file(theory, 'theory.dat')
+
        return 
 
 class ESTOKTP:
@@ -275,16 +273,18 @@ class ESTOKTP:
        """
        Builds esktoktp.dat
        """
+       import iotools as io
+
        jobs  = ('Opt_Reac1','Opt_Reac1_1','1dTau_Reac1','HL_Reac1','Symm_reac1','kTP')
-       est  = open('estoktp.dat','w')
-       est.write(' Stoichiometry\t' + self.stoich.upper())
-       est.write('\n Debug  2')
+       eststring  = ' Stoichiometry\t' + self.stoich.upper()
+       eststring +='\n Debug  2'
        for i,meth in enumerate(self.methods):
            if meth[1] != '':
-               est.write('\n ' + jobs[i])
-       est.write('\nEnd')
-       est.write('\n 10,6\n numprocll,numprochl\n')
-       est.write(' 200MW  300MW\n gmemll gmemhl\n')
-       est.close
+               eststring += '\n ' + jobs[i]
+       eststring += '\nEnd'
+       eststring += '\n 10,6\n numprocll,numprochl\n'
+       eststring += ' 200MW  300MW\n gmemll gmemhl\n'
+       io.write_file(eststring, 'estoktp.dat')
+
        return 
 

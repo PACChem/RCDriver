@@ -1,7 +1,7 @@
 ============
 QTC options 
 ============
-Molecule name (SMILE): C-C-C
+Molecule name (SMILES): C-C-C
 Use QTC (provide .xyz file in data if false): True
         (use 'skip' to skip to submission)
 
@@ -14,7 +14,7 @@ Run on node (0 if on login, d to debug): d
 ================
 EStoKTP options
 ================
-No. MC  sampling points: 2
+No. MC  sampling points: 5
 Scan interval (degrees): 360
 No. of steps on the PES: 4
 ------------------------------------------------ 

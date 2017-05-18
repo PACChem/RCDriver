@@ -132,9 +132,11 @@ class Tscan:
             return
         os.chdir('me_files')
         return
+    
+if __name__ == "__main__":
 
-#run = Tscan()
-#run.build_subdirs()
-#run.build_files()
-#run.execute()
-#run.extract()
+    run = Tscan()
+    run.build_subdirs()
+    run.build_files()
+    run.execute()
+    run.extract()
