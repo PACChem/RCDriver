@@ -1,14 +1,14 @@
 ============
 QTC options 
 ============
-Molecule name (SMILES): C-C-C
+Molecule name (SMILES): CCC
 Use QTC (provide .xyz file in data if false): True
         (use 'skip' to skip to submission)
 
 ==============
 BLUES options   
 ==============
-Run on node (0 if on login, d to debug): d
+Run on node (0 if on login, d to debug): debug
 
 
 ================
@@ -18,11 +18,11 @@ No. MC  sampling points: 5
 Scan interval (degrees): 360
 No. of steps on the PES: 4
 ------------------------------------------------ 
-  Level   :    Program    :      Theory
+ Computation   :    Program    :      Theory
 ------------------------------------------------
-level0    :      g09      : b3lyp/6-31+g(d,p) 
-level1    :               : 
-hind_rotor:      g09      : b3lyp/6-31+g(d,p)
-symmetry  :               :
-hlevel    :               :
+Opt_Reac1      :      g09      : b3lyp/6-31+g(d,p) 
+Opt_Reac1_1    :      g09      : b3lyp/6-31+g(d,p)
+HL_Reac1       :      g09      : b3lyp/6-31+g(d,p)
+Sym_Reac1      :               :
+kTP            :               :
 ------------------------------------------------

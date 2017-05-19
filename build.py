@@ -168,7 +168,7 @@ class REAC:
         zmatstring += ' -->nametau, taumin, taumax\n'
         for angle in angles:
             periodicity = self.find_period(atoms, angle)
-            zmatstring += angle + ' 0 ' + str(self.interval/periodicity) + '\n'
+            zmatstring += angle + ' 0 ' + str(int(self.interval)/periodicity) + '\n'
 
         hind = angles
 
@@ -177,7 +177,7 @@ class REAC:
         zmatstring += ' -->namehind,hindmin,hindmax,nhindsteps,period\n'
         for hin in hind:
             periodicity = self.find_period(atoms, hin)
-            zmatstring += hin + ' 0 ' + str(self.interval/periodicity) + ' ' + self.nsteps + ' ' + str(periodicity)  + '\n'   
+            zmatstring += hin + ' 0 ' + str(int(self.interval)/periodicity) + ' ' + self.nsteps + ' ' + str(periodicity)  + '\n'   
             for i,meas in enumerate(measure):
                 if hin.lower().strip() == meas[0].lower().strip(): #
                     measure = np.array([np.delete(measure.T[0],i),np.delete(measure.T[1],i)]).T
@@ -208,26 +208,25 @@ class REAC:
         return 
 
 class THEORY:
-    def __init__(self,meth,jobs):
+    def __init__(self,meths):
         start = 0
-        self.meth = meth
-        self.jobs = jobs
-        self.oth  = ('','freq','','')
+        self.meths = meths
  
     def build(self):
         """
         Builds theory.dat 
         """
 
-        meth    = self.meth
-        jobs    = self.jobs
+        meths    = self.meths
         theory  = ''
 
-        for i,job in enumerate(jobs):
-            if meth[i][1] != '':
-                theory += job + ' ' + meth[i][0] + '\n '
-                theory += self.meth[i][1] + ' opt=internal\n'
-                theory += ' int=ultrafine nosym ' + self.oth[i]+'\n\n'
+        for meth in meths:
+            theory += meth[0] + ' ' + meth[1] + '\n '
+            theory += meth[2] + ' opt=internal\n'
+            theory += ' int=ultrafine nosym ' 
+            if meth[0] == 'level1':
+                theory += ' freq'
+            theory += '\n\n'
 
         theory += 'End'
 
@@ -236,21 +235,19 @@ class THEORY:
         return 
 
 class ESTOKTP:
-    def __init__(self,stoich,methods):
+    def __init__(self,stoich,jobs):
         self.stoich  = stoich
-        self.methods = methods
+        self.jobs    = jobs
                  
     def build(self):
        """
        Builds esktoktp.dat
        """
 
-       jobs  = ('Opt_Reac1','Opt_Reac1_1','1dTau_Reac1','HL_Reac1','Symm_reac1','kTP')
        eststring  = ' Stoichiometry\t' + self.stoich.upper()
        eststring +='\n Debug  2'
-       for i,meth in enumerate(self.methods):
-           if meth[1] != '':
-               eststring += '\n ' + jobs[i]
+       for job in self.jobs:
+           eststring += '\n ' +job
        eststring += '\nEnd'
        eststring += '\n 10,6\n numprocll,numprochl\n'
        eststring += ' 200MW  300MW\n gmemll gmemhl\n'

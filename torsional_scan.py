@@ -17,46 +17,26 @@ class Tscan:
         self.nsamps   = '5' #Number of MC sampling points
         self.interval = 360 #Interval to scan
         self.nsteps   = '4' #Number of steps on PES
-        self.meth = [['g09', 'b3lyp/6-31+g(d,p)'], ['', ''], ['g09', 'b3lyp/6-31+g(d,p)'], ['', ''], ['', '']]
-        self.jobs = ['level0', 'level1', 'hind_rotor', 'symmetry', 'hlevel']
         ############################################
+
         self.get_options()
-        #self.jobs  = ('Opt_React1','Opt_React1_1','1dTau_Reac1','kTP')
        
     def get_options(self):
-        #clean this up when we decide what input should look like
-        options = io.read_file('input.dat').split('\n')
-        for opts in options:
+        """
+        Gets options from the input file
+        """
+        options = io.read_file('input.dat')
 
-            if   'node'      in opts:
-                self.node     = self.get_val(opts,1)
-            elif 'Use QTC'   in opts:
-                self.QTC      = self.get_val(opts,1)
-            elif 'Molecule'  in opts:
-                self.mol      = self.get_val(opts,1)
-            elif 'sampling'  in opts:
-                self.nsamps   = self.get_val(opts,1)
-            elif 'interval'  in opts:
-                self.interval = self.get_val(opts,1)
-            elif 'steps'     in opts:
-                self.nsteps   = self.get_val(opts,1)
+        self.set_theory(options)
 
-            elif 'level0'    in opts:
-                self.meth[0] = [self.get_val(opts,1,'false'),self.get_val(opts,2)]
-                self.jobs[0] =  self.get_val(opts,0)
-            elif 'level1'    in opts:
-                self.meth[1] = [self.get_val(opts,1,'false'),self.get_val(opts,2)]
-                self.jobs[1] =  self.get_val(opts,0)
-            elif 'hind_rotor'in opts:
-                self.meth[2] = [self.get_val(opts,1,'false'),self.get_val(opts,2)]
-                self.jobs[2] =  self.get_val(opts,0)
-            elif 'symmetry'  in opts:
-                self.meth[3] = [self.get_val(opts,1,'false'),self.get_val(opts,2)]
-                self.jobs[3] =  self.get_val(opts,0)
-            elif 'hlevel'    in opts:
-                self.meth[4] = [self.get_val(opts,1,'false'),self.get_val(opts,2)]
-                self.jobs[4] =  self.get_val(opts,0)
+        options      = options.split('\n')
 
+        self.node    = self.set_param('node'    , options)
+        self.QTC     = self.set_param('Use QTC' , options)
+        self.mol     = self.set_param('Molecule', options)
+        self.nsamps  = self.set_param('sampling', options)
+        self.interval= self.set_param('interval', options)
+        self.nsteps  = self.set_param('steps'   , options)
         return
        
     def build_subdirs(self):
@@ -91,12 +71,12 @@ class Tscan:
         print('completed')
 
         print('Task: Building theory.dat...')
-        theory = build.THEORY(self.meth,self.jobs)
+        theory = build.THEORY(self.meths)
         theory.build()
         print('completed')
 
         print('Task: Building estoktp.dat...')
-        estoktp = build.ESTOKTP(reac.get_stoich(),self.meth)
+        estoktp = build.ESTOKTP(reac.get_stoich(),self.jobs)
         estoktp.build()
         print('completed')
 
@@ -173,9 +153,46 @@ class Tscan:
             return opt.split(':')[result].strip('\n').strip()
         else:
             return opt.split(':')[result].strip()
+    def key_check(self,line,keyword):
+        """                                                   
+        Checks if a line of the input file has a keyword on it
+        """                                                   
+        if keyword in line:                                   
+            return True                                       
+        else:                                                 
+            return False                                     
        
+    def set_param(self,keyword,inputlines):
+         """
+         Sets parameter based on a keyword in inputfile
+         """
+         for line in inputlines:
+             if self.key_check(line,keyword):
+                 return  self.get_val(line,1)
+         return
+      
+    def set_theory(self,inputlines):
+        """
+        Sets theory parameters
+        """
+        comps = {'Opt_Reac1':'level0','Opt_Reac1_1':'level1','1dTau_Reac1':'hind_rotor',
+                           'HL_Reac1':'hind_rotor','Symm_Reac1':'symmetry','kTP':'hlevel'}
 
+        inputlines = inputlines.replace(' ','')
+        lines      = inputlines.split('--------------------------')[2].strip('-').split('\n')
+        del lines[0]
+        self.jobs  = []
+        self.meths = []
 
+        for line in lines:
+            line = line.strip().split(':') 
+            if self.key_check(comps,line[0]):
+                if self.key_check(self.jobs,comps[line[0]]) and line[1] != '':
+                    self.jobs.append(line[0])
+                    self.meths.append([comps[line[0]],line[1],line[2]])
+        return
+
+ 
 if __name__ == "__main__":
 
     run = Tscan()
