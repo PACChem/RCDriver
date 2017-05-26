@@ -1,7 +1,13 @@
 ============
+Input I'm expecting from RMG
+============
+Reaction type: Addition 
+Reactant list (SMILES): CC, C
+Product  list (SMILES): CCC
+
+============
 QTC options 
 ============
-Molecule name (SMILES): CCC
 Use QTC (provide .xyz file in data if false): True
         (use 'skip' to skip to submission)
 
@@ -15,14 +21,16 @@ Run on node (0 if on login, d to debug): debug
 EStoKTP options
 ================
 No. MC  sampling points: 5
+No. of transition state: 1
 Scan interval (degrees): 360
 No. of steps on the PES: 4
 ------------------------------------------------ 
- Computation   :    Program    :      Theory
+   Module      :    Program    :      Theory
 ------------------------------------------------
-Opt_Reac1      :      g09      : b3lyp/6-31+g(d,p) 
-Opt_Reac1_1    :      g09      : b3lyp/6-31+g(d,p)
-HL_Reac1       :      g09      : b3lyp/6-31+g(d,p)
-Sym_Reac1      :               :
-kTP            :               :
+Opt            :      g09      : b3lyp/6-31+g(d,p) 
+Opt_1          :      g09      : b3lyp/6-31+g(d,p)
+1dTau          :      g09      : b3lyp/6-31+g(d,p)
+Symm           :               :
+HL             :               :
+MdTau          :               :
 ------------------------------------------------
