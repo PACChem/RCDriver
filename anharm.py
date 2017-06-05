@@ -63,6 +63,7 @@ def get_freqs(filename):
     freqs = np.sort(freqs)[::-1]
     return freqs.tolist(), a.tolist()
 
+
 def find_hinfreqs(proj,unproj,order):
     """
     Compares the frequencies from EStokTP projected and unprojected frequency
@@ -97,14 +98,14 @@ def find_hinfreqs(proj,unproj,order):
     return modes
 
 def remove_modes(xmat,modes):
-   """
-   Removes specified modes from anharmonic constant matrix
-   INPUTS:
-   xmat  - anharmonic constant matrix
-   modes - the modes to delete from the matrix (with 1 being the first mode)
-   OUTPUTS:
-   xmat  - anharmonic constant matrix with columns and rows deleted for specified modes
-   """ 
+    """
+    Removes specified modes from anharmonic constant matrix
+    INPUTS:
+    xmat  - anharmonic constant matrix
+    modes - the modes to delete from the matrix (with 1 being the first mode)
+    OUTPUTS:
+    xmat  - anharmonic constant matrix with columns and rows deleted for specified modes
+    """ 
     modes.sort(reverse=True)
     modeindex = [mode-1 for mode in modes]
     
@@ -199,16 +200,25 @@ if __name__ == '__main__':
     #SET PARAMETERS############
     import argparse
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
-                            description="SARAH!!! you haven't done this yet!!!")
+             description="""
+       This module computes anharmonic corrections to the projected
+       frequencies produced during an EStokTP 1D or MD torsional scan.  
 
-    parser.add_argument('-l',        '--logfile',type=str,default='reac1_l1.log')
-    parser.add_argument('-n',         '--natoms',type=int,default=0)
-    parser.add_argument('-freq',    '--freqfile',type=str,default='reac1_fr.me')
-    parser.add_argument('-unfreq','--unprojfreq',type=str,default='reac1_unprfr.me')
-    parser.add_argument('-w',     '--writegauss',type=str,default='true')
-    parser.add_argument('-r',       '--rungauss',type=str,default='false')
-    parser.add_argument('-a',      '--anharmlog',type=str,default='anharm.log')
-    parser.add_argument('-x',  '--computeanharm',type=str,default='true')
+       Requirements: 
+       In addition to both the projected frequency and unprojected frequency files that 
+       EStokTP puts in me_files, it requires EITHER a g09 anharmonic logfile OR for g09 
+       to be available so that this module can execute a g09 anharmonic computation 
+       written using an optimization logfile (usually taken from geoms/reac1_l1.log)
+       """)
+
+    parser.add_argument('-n',         '--natoms',type=int,help = 'number of atoms in the molecule. Required.',                              required=True)
+    parser.add_argument('-a',      '--anharmlog',type=str,help = 'location of g09 anharmonic logfile IF unavailable, use next 3 options',   default='anharm.log')
+    parser.add_argument('-l',        '--logfile',type=str,help = 'path to  optimization logfile (required if no g09 anharmfile available)', default='geoms/reac1_l1.log')
+    parser.add_argument('-w',     '--writegauss',type=str,help = 'if true will write gaussian anharmonic input file',                       default='false')
+    parser.add_argument('-r',       '--rungauss',type=str,help = 'if true will execute guassian anharmonic computation',                    default='false')
+    parser.add_argument('-freq',    '--freqfile',type=str,help = 'path to estoktp UNprojected frequency file found in me_files',            default='me_files/reac1_fr.me')
+    parser.add_argument('-unfreq','--unprojfreq',type=str,help = 'path to estoktp   projected frequency file foudn in me_files',            default='me_files/reac1_unprfr.me')
+    parser.add_argument('-x',  '--computeanharm',type=str,help = 'specify false to avoid computing anharmonic correction',                  default='true')
 
     args      = parser.parse_args()
     eskfile   = args.logfile
