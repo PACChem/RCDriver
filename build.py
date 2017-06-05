@@ -18,7 +18,8 @@ class MOL:
         self.interval   = opts[1]    #Interval for tors scan (should be same geometry as 0 degree)
         self.nsteps     = opts[2]    #Number of points to take on PES
         self.QTC        = opts[3]    #if QTC, openbabel, and pybel are not importable, self.QTC = 'False' 
-                                     #be sure to have cartesian <SMILE string>.xyz in data/ (ex. C-C-C.xyz)
+                                     #be sure to have cartesian <SMILE string>.xyz in data/ (ex. CCC.xyz)
+        self.jobs       = opts[4]
         ######################################
  
 
@@ -36,6 +37,7 @@ class MOL:
         stoich = ob.get_formula(mol)
 
         lines    =  ob.get_xyz(mol).split('\n')
+
         lines[0] = 'Geometry ' + lines[0] + ' Angstrom'
         del lines[1]
 
@@ -72,7 +74,7 @@ class MOL:
             print('Please check that directory name and cartesian coordinate file name are equivalent')
             print('Please check that test_chem is in location: ' +  self.convert)
             return atoms, measure, angles
-        
+      
         #Get relevant data from Test_Chem output file
         props,lines = io.read_file(tempfile).split('Z-Matrix:\n')
         io.rm(tempfile)
@@ -121,7 +123,9 @@ class MOL:
                     atoms[index][3] = atoms[int(atoms[index][3])-1][0]
                     if len(atom) > 5:
                         atoms[index][5] = atoms[int(atoms[index][5])-1][0]
-
+        for angle in measure:
+            if 'R' in angle[0]:
+                angle[1] = str(float(angle[1]) * 0.529177) #bohr to angstrom
         return stoich, atoms, measure, angles
 
     def find_period(self,zmat,hin):
@@ -166,7 +170,7 @@ class MOL:
             zmatstring += angle + ' 0 ' + str(int(self.interval)/periodicity) + '\n'
 
         hind = angles
-
+        
         zmatstring += '\nnhind\n'
         zmatstring += str(len(angles)) + '\n'
         zmatstring += ' -->namehind,hindmin,hindmax,nhindsteps,period\n'
@@ -176,6 +180,18 @@ class MOL:
             for i,meas in enumerate(measure):
                 if hin.lower().strip() == meas[0].lower().strip(): #
                     measure = np.array([np.delete(measure.T[0],i),np.delete(measure.T[1],i)]).T
+
+        if 'MdTau' in self.jobs:
+            zmatstring += '\nnhind2D\n'
+            zmatstring += str(len(angles)/2) + '\n'
+            zmatstring += ' -->namehind,hindmin,hindmax,nhindsteps,period\n'
+            for hin in hind:
+                periodicity = self.find_period(atoms, hin)
+                zmatstring += hin + ' 0 ' + str(int(self.interval)/periodicity) + ' ' + self.nsteps + ' ' + str(periodicity)  + '\n'   
+                for i,meas in enumerate(measure):
+                    if hin.lower().strip() == meas[0].lower().strip(): #
+                        measure = np.array([np.delete(measure.T[0],i),np.delete(measure.T[1],i)]).T
+
         #Size and linearity of molecule###########
         zmatstring += '\nnatom natomt ilin\n'
         zmatstring += str(len(atoms)) + ' ' + str(len(atoms)) + self.ilin + '\n'
