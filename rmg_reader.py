@@ -13,12 +13,18 @@ class REACTION:
         self.products  = get_products(lines)
         self.TS        = get_ts(lines)
         self.nTS       = len(self.TS)
-        self.arr       = get_Arr(lines)
+        #self.arr       = get_Arr(lines)   
 
 class SPECIES:
     def __init__(self,lines):
         self.label   = get_label(lines)
         self.smiles  = get_smiles(lines)
+        self.mult    = get_multiplicity(lines)
+
+class TRANS:
+    def __init__(self,lines):
+        self.label   = get_label(lines)
+        #self.smiles  = get_smiles(lines)   coming soon to RMG
         self.mult    = get_multiplicity(lines)
 
 def get_label(data):

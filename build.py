@@ -252,7 +252,7 @@ class ESTOKTP:
         self.nprods  = nprods
         self.coresh  = opts[0]
         self.coresl  = opts[1]
-                 
+         
     def build(self,reactype,nTS):
        """
        Builds esktoktp.dat
@@ -269,16 +269,16 @@ class ESTOKTP:
                eststring += ' ' + str(nTS) + 'TS'
 
        eststring +='\n Debug  2'
-
+       print self.jobs
        for job in self.jobs:
            for n in range(self.nreacs):
-               if job == 'Opt_1':
-                   eststring += '\n ' + 'Opt_Reac' + str(n+1) + '_1'
+               if 'Opt_1' in job:
+                   eststring += '\n ' + job.rstrip('_1') + '_Reac' + str(n+1) + '_1'
                else:
-                   eststring += '\n ' +job + '_Reac' + str(n+1)
+                   eststring += '\n ' + job + '_Reac' + str(n+1)
            for n in range(self.nprods):
-               if job == 'Opt_1':
-                   eststring += '\n ' + 'Opt_Prod' + str(n+1) + '_1'
+               if 'Opt_1' in job:
+                   eststring += '\n ' + job.rstrip('_1') + '_Prod' + str(n+1) + '_1'
                else:
                    eststring += '\n ' +job + '_Prod' + str(n+1)
 

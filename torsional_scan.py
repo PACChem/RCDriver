@@ -16,6 +16,7 @@ class ES:
         ####DEFAULT INPUTS#########################
         self.reacs    = 'CCC'   #list of SMILE strings of reactants
         self.prods    = ''      #list of SMILE strings of products
+        self.TS       = ''      #list of SMILE strings of transition states
         self.reactype = ''      #type of reaction (default well)
         self.nTS      = 0       #Number of transition states (default 0)
         self.QTC      = 'True'  #QTC, Openbabel, and Pybel installed
@@ -25,11 +26,11 @@ class ES:
         self.nsamps   = '5'     #Number of MC sampling points
         self.interval = 360     #Interval to scan
         self.nsteps   = '4'     #Number of steps on PES
+        self.rmg      = 'false' #RMG file to give input
+        self.restart  = 'false' #Point at which to restart a computation
         ###########################################
 
         self.get_options()      #Options from input file
-        self.reacs = self.reacs.replace(' ','').split(',')
-        self.prods = self.prods.replace(' ','').split(',')
        
     def get_options(self):
         """
@@ -40,11 +41,12 @@ class ES:
         self.get_theory_params(options)
 
         options      = options.split('\n')
-
+      
         self.reactype= self.get_param(self.reactype, 'Reaction type', options)
-        self.nTS     = self.get_param(self.reactype, 'transition'   , options)
-        self.reacs   = self.get_param(self.reacs   , 'Reactant'     , options)
-        self.prods   = self.get_param(self.prods   , 'Product'      , options)
+        self.nTS     = self.get_param(self.reactype, 'of transition', options)
+        self.reacs   = self.get_param(self.reacs   , 'Reactant'     , options).replace(' ','').split(',')
+        self.prods   = self.get_param(self.prods   , 'Product'      , options).replace(' ','').split(',')
+        self.TS      = self.get_param(self.prods   , 'Transition'   , options).replace(' ','').split(',')
         self.node    = self.get_param(self.node    , 'node'         , options)
         self.coresh  = self.get_param(self.coresh  , 'cores high'   , options)
         self.coresl  = self.get_param(self.coresl  , 'cores low'    , options)
@@ -52,9 +54,56 @@ class ES:
         self.nsamps  = self.get_param(self.nsamps  , 'sampling'     , options)
         self.interval= self.get_param(self.interval, 'interval'     , options)
         self.nsteps  = self.get_param(self.nsteps  , 'steps'        , options)
+        self.restart = self.get_param(self.restart , 'Restart'      , options)
+
+        self.rmg     = self.get_param(self.rmg     , 'RMG input'    , options)
+        if self.rmg.lower() != 'false' and self.rmg != '':
+            self.rmg_params(self.rmg)
 
         return
        
+    def rmg_params(self,rmgfile):
+
+        full = io.read_file(rmgfile)
+        inputs = full.split('\r\n\r\n')
+        dic ={}
+        for inp in inputs:
+            if 'species' in inp:
+                Spec = rg.SPECIES(inp)
+                dic[Spec.label] = [Spec.smiles, Spec.mult]
+            if 'transitionState' in inp:
+                Trans = rg.TRANS(inp)
+                tsdic[Trans.label] = [Trans.smiles, Trans.mult]
+            if 'reaction' in inp:
+                Reac = rg.REACTION(inp)
+                self.reactype = Reac.reactype
+                reactants     = Reac.reactants
+                products      = Reac.products
+                tss           = Reac.TS
+                self.reacs = []
+                self.prods = []
+                self.TS    = []
+                self.nTS   = Reac.nTS
+                for reac in reactants:
+                    if not reac in dic:
+                        print 'incomplete RMG data'
+                        break
+                    else:
+                        self.reacs.append(dic[reac][0])
+                for prod in products:
+                    if not prod in dic:
+                        print 'incomplete RMG data'
+                        break
+                    else:
+                        self.prods.append(dic[prod][0])
+                for ts in tss:
+                    if not ts in tsdic:
+                        print 'incomplete RMG data'
+                        break
+                    else:
+                        self.ts.append(tsdic[ts][0])
+        return
+
     def build_subdirs(self):
         
         """
@@ -68,37 +117,6 @@ class ES:
         print('completed')
         return
 
-    def rmg_params(self,rmgfile):
-
-        full = io.read_file(rmgfile)
-        inputs = full.split('\r\n\r\n')
-        dic ={}
-        for inp in inputs:
-            if 'species' in inp:
-                Spec = rg.SPECIES(inp)
-                dic[Spec.label] = [Spec.smiles, Spec.mult]
-            if 'reaction' in inp:
-                Reac = rg.REACTION(inp)
-                self.reactype = Reac.reactype
-                reactants     = Reac.reactants
-                products      = Reac.products
-                self.reacs = []
-                self.prods = []
-                self.nTS   = Reac.nTS
-                for reac in reactants:
-                    if not reac in dic:
-                        print 'incomplete RMG data'
-                        break
-                    else:
-                        self.reacs.append(dic[reac][0])
-                for prod in products:
-                    if not reac in dic:
-                        print 'incomplete RMG data'
-                        break
-                    else:
-                        self.prods.append(dic[prod][0])
-
-
     def build_files(self):
 
         """
@@ -110,41 +128,58 @@ class ES:
             self.stoich = self.reacs.split(',')[0]
             return
 
-        os.chdir('./data')
-        
-        opts = (self.nsamps, self.interval,self.nsteps,self.QTC,self.jobs)
-        stoich = []
-        Reac = build.MOL(opts,'reac')
-        Prod = build.MOL(opts,'prod')
+        os.chdir('./data'
+)
+        if self.restart.lower() == 'false':
+            self.restart = 0
+        else:
+            self.restart = int(self.restart)
+
+        if self.restart < 10: 
+            opts = (self.nsamps, self.interval,self.nsteps,self.QTC,self.jobs)
+            stoich = []
+            Reac = build.MOL(opts,'reac')
+            Prod = build.MOL(opts,'prod')
  
-        reacs = self.reacs
-        prods = self.prods
+            reacs = self.reacs
+            prods = self.prods
 
-        i,j = 0,0
-        if reacs[0] != '':
-            for i, reac in enumerate(reacs,start=1):
-                print('Task: Building reac' + str(i) + '.dat...')
-                stoich.append(Reac.build(reac.strip(),i))
-                print('completed')
-        if prods[0] != '':
-            for j, prod in enumerate(prods,start=1):
-                print('Task: Building prod' + str(j) + '.dat...')
-                stoich.append(Prod.build(prod.strip(),j))
-                print('completed')
+            i,j = 0,0
+            if reacs[0] != '':
+                for i, reac in enumerate(reacs,start=1):
+                    print('Task: Building reac' + str(i) + '.dat...')
+                    stoich.append(Reac.build(reac.strip(),i))
+                    print('completed')
+            if prods[0] != '':
+                for j, prod in enumerate(prods,start=1):
+                    print('Task: Building prod' + str(j) + '.dat...')
+                    stoich.append(Prod.build(prod.strip(),j))
+                    print('completed')
 
-        self.stoich = stoich[0]
-        self.mol    =   reac[0]
-        
-        print('Task: Building theory.dat...')
-        theory = build.THEORY(self.meths)
-        theory.build()
-        print('completed')
+            self.stoich = stoich[0]
+            self.mol    =   reac[0]
 
-        print('Task: Building estoktp.dat...')
-        opts    = (self.coresh,self.coresl)
-        estoktp = build.ESTOKTP(self.stoich,self.jobs,opts,i,j)
-        estoktp.build(self.reactype,self.nTS)
-        print('completed')
+        if self.restart < 2: 
+            print('Task: Building theory.dat...')
+            theory = build.THEORY(self.meths)
+            theory.build()
+            print('completed')
+
+        if self.restart < 6:
+            print('Task: Building estoktp.dat...')
+            for i,job in enumerate(self.jobs):
+                if job == 'Opt'   and self.restart > 2:
+                    self.jobs[i]  = 'n' + job
+                if job == 'Opt_1' and self.restart > 3:
+                    self.jobs[i]  = 'n' + job
+                if job == '1dTau' and self.restart > 4:
+                    self.jobs[i]  = 'n' + job
+                if job == 'MdTau' and self.restart > 5:
+                    self.jobs[i]  = 'n' + job
+            opts    = (self.coresh,self.coresl)
+            estoktp = build.ESTOKTP(self.stoich,self.jobs,opts,i,j)
+            estoktp.build(self.reactype,self.nTS)
+            print('completed')
 
         os.chdir('..')
 
@@ -339,12 +374,10 @@ class MESS:
 if __name__ == "__main__":
 
     es = ES()
-    print es.reacs
-    es.rmg_params('network5_1.py')
-    print es.reacs
-    es.build_subdirs()
-    es.build_files()
-    es.execute()
+    if es.restart < 7:
+        es.build_subdirs()
+        es.build_files()
+        es.execute()
     mess = MESS()
     mess.build(es.reacs,es.prods)
-    mess.run(es.reacs.[0])
+    mess.run(es.reacs[0])
