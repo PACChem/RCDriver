@@ -1,7 +1,7 @@
 ============
 RMG and/or manual species input
 ============
-RMG inputfile (false for manual): rmg_example_input.py
+RMG inputfile (false for manual): rmg_input_example.py
 
 Reaction type: Addition 
 Reactant list (SMILES): CC, C

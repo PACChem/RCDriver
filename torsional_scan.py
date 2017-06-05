@@ -67,6 +67,7 @@ class ES:
         full = io.read_file(rmgfile)
         inputs = full.split('\r\n\r\n')
         dic ={}
+        tsdic ={}
         for inp in inputs:
             if 'species' in inp:
                 Spec = rg.SPECIES(inp)
