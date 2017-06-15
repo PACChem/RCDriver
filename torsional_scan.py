@@ -6,19 +6,298 @@ import build
 import numpy as np
 sys.path.insert(0, './bin')
 sys.path.insert(0, '/home/elliott/Packages/QTC/')
+import obtools as ob
 import iotools as io
 import tctools as tc
 import rmg_reader as rg
 
 class ES:
-    def __init__(self):
+    def __init__(self,args):
+
+        #for reac/prod/ts.dat
+        self.restart =   args.restart 
+        self.QTC     =   args.QTC      
+        self.reacs   =   args.reacs    
+        self.prods   =   args.prods    
+        self.reactype=   args.reactype   
+        self.nTS     =   args.nTS      
+        self.TS      =   args.TS      
+        #for theory.dat
+        self.meths   =   args.meths
+        #for estoktp.at
+        self.jobs    =   args.jobs
+        self.nsamps  =   args.nsamps   
+        self.interval=   args.interval 
+        self.nsteps  =   args.nsteps   
+        self.node    =   args.node     
+        self.coresh  =   args.coresh   
+        self.coresl  =   args.coresl   
+        
+   
+    def build_subdirs(self):
+        
+        """
+        Builds data and output subdirectories
+        """
+        print('Task: Building directories...')
+        if not os.path.exists('./data'):
+            os.makedirs('./data') 
+        if not os.path.exists('./output'):
+            os.makedirs('./output') 
+        print('completed')
+        return
+
+    def build_files(self):
+
+        """
+        Runs the build functions for reacn.dat, prodn.dat, theory.dat, and estoktp.dat
+        Requirements: QTC, Openbabel, Pybel (OR prepared cartesian coordinate files) and Test_Chem
+        """
+        if self.QTC.lower() == 'skip': 
+            print('Skipping build of data/*.dat')
+            self.stoich = self.reacs[0]
+            return
+
+        os.chdir('./data')
+
+        if self.restart < 10: 
+            opts = (self.nsamps, self.interval,self.nsteps,self.QTC,self.jobs)
+            stoich = []
+            Reac = build.MOL(opts,'reac')
+            Prod = build.MOL(opts,'prod')
+ 
+            reacs = self.reacs
+            prods = self.prods
+
+            i,j = 0,0
+            for i, reac in enumerate(reacs,start=1):
+                print('Task: Building reac' + str(i) + '.dat...')
+                stoich.append(Reac.build(reac.strip(),i))
+                print('completed')
+            for j, prod in enumerate(prods,start=1):
+                print('Task: Building prod' + str(j) + '.dat...')
+                stoich.append(Prod.build(prod.strip(),j))
+                print('completed')
+
+            self.stoich = stoich[0]
+            self.mol    =   reac[0]
+
+        if self.restart < 2: 
+            print('Task: Building theory.dat...')
+            theory = build.THEORY(self.meths)
+            theostring = theory.build()
+            io.write_file(theostring, 'theory.dat')
+            print('completed')
+
+        if self.restart < 7:
+            print('Task: Building estoktp.dat...')
+            for k,job in enumerate(self.jobs):
+                if job == 'Opt'   and self.restart > 2:
+                    self.jobs[k]  = 'n' + job
+                if job == 'Opt_1' and self.restart > 3:
+                    self.jobs[k]  = 'n' + job
+                if job == '1dTau' and self.restart > 4:
+                    self.jobs[k]  = 'n' + job
+                if job == 'MdTau' and self.restart > 5:
+                    self.jobs[k]  = 'n' + job
+            opts    = (self.coresh,self.coresl)
+            estoktp = build.ESTOKTP(self.stoich,self.jobs,opts,i,j)
+            eststring = estoktp.build(self.reactype,self.nTS)
+            io.write_file(eststring, 'estoktp.dat')
+            print('completed')
+
+        os.chdir('..')
+
+        return
+  
+    def execute(self):
+        """
+        Runs EStokTP on a given blues node (default b431)
+        use 0 in input file to run on login
+        use d or debug to just make input files and not run EStokTP
+        Requirements: PACC member on blues
+        """
+        print('Task: Submitting EStokTP job...')
+        if self.node == '0':
+            os.system('soft add +g09; soft add +gcc-5.3; ~/Packages/EStokTP/exe/estoktp.x > estotkp.log &')
+        elif self.node == 'd' or self.node == 'debug':
+            print('task skipped')
+            return
+        else:
+            os.system('~/bin/run_estoktp.com ' + self.node)
+        print('completed')
+        return
     
+
+class MESS:
+    def __init__(self):
+        ladi = 'dida'
+ 
+    def build(self,reacs,prods,anharm,anovrwrt,node,meths):
+        """
+        Compiles together the mess data extracted from EStokTP computations
+        to form an mess input file
+        """
+        species = []
+        speclist = []
+        if not os.path.exists('me_files'):
+            print('failed -- me_files not found, check estoktp.log')
+            return
+        if os.path.exists(reacs[0].strip() + '.pf'):
+            pfqtc = self.extract_mess(reacs[0].strip() + '.pf').split('\n') #Copy 1st section of QTC pf file
+            tf   = ''
+            for line in pfqtc:
+                #if line == 'Frequencies': #use QTC geometry
+                #   break
+                if "Species" in line:                                     #Use EStokTP geometry
+                   break
+                tf += line + '\n'
+        else:
+            tf =" Temperature(step[K],size)\t100.\t30\n RelativeTemperatureIncrement\t\t 0.001\n"
+ 
+
+        for n,reac in enumerate(reacs):
+            if reac == '':
+                break
+            species.append(reac)
+            speclist.append('reac' + str(n+1))
+            natom = ob.get_natom(reac)
+            print('Task: Extracting MESS data for reac' + str(n+1) + '...')
+            os.chdir('me_files')
+            ge = self.extract_mess('reac' + str(n+1) + '_1dge.me')                      #Copy EStokTP geometry
+            if 'Species' in ge:
+                ge = " Species " + reac.strip() +  ge.split("Species")[1]
+            elif 'Fragment' in ge:
+                ge = " Fragment " + reac.strip() +  ge.split("Fragment")[1]
+            ge,ge1 = ge.split('Core')
+            hr = self.extract_mess('reac' + str(n+1) + '_hr.me')                         #Copy EStokTP hr data
+            if not 'Core' in hr:
+                ge = ge + 'Core' +ge1
+            else:
+                hr = hr.split('Quantum')
+                hr = hr[0].rstrip() + '\n    Quantum'  + hr[1].lstrip()
+            if anharm.lower() == 'false':
+                fr = self.extract_mess('reac' + str(n+1) + '_fr.me')                 #Copy EStokTP projfrequencies
+                fr = fr.split('End')[0] + 'End  '
+            else:
+                for meth in meths:
+                    if str(anharm) in meth[0]:
+                        anlevel = meth[2]
+                os.chdir('..')                          
+                fr = get_anharm('reac', str(n+1), natom,node,anlevel,anovrwrt,reac)  #(xmat with projected out scanned torsional modes)
+                
+                os.chdir('me_files')
+            os.chdir('..')                          
+            print('completed')
+
+            print('Task: Building MESS input file...')
+            pf = tf + ge + hr + fr
+            io.write_file(pf + '\n',reac.strip() + '.pf')
+            print('completed')
+
+        for n, prod in enumerate(prods):
+            if prod == '':
+                break
+            species.append(prod)
+            speclist.append('prod' + str(n+1))
+            print('Task: Extracting MESS data for prod' + str(n+1) + '...')
+            os.chdir('me_files')
+            ge = self.extract_mess('prod' + str(n+1) + '_1dge.me')                      #Copy EStokTP geometry
+            if 'Species' in ge:
+                ge = " Species " + prod.strip() +  ge.split("Species")[1]
+            elif 'Fragment' in ge:
+                ge = " Species " + prod.strip() +  ge.split("Fragment")[1]
+            ge,ge1 = ge.split('Core')
+            hr = self.extract_mess('prod' + str(n+1) + '_hr.me')                         #Copy EStokTP hr data
+            if not 'Core' in hr:
+                ge = ge + 'Core' +ge1
+            else:
+                hr = hr.split('Quantum')
+                hr = hr[0].rstrip() + '\n    Quantum'  + hr[1].lstrip()
+            if anharm.lower() == 'false':
+                fr = self.extract_mess('prod' + str(n+1) + '_fr.me')                 #Copy EStokTP projfrequencies
+                fr = fr.split('End')[0] + 'End  '
+            else:
+                for meth in meths:
+                    if str(anharm) in meth[0]:
+                        anlevel = meth[2]
+                os.chdir('..')                           
+                fr = get_anharm('prod', str(n+1), natom,node,anlevel,anovrwrt,prod)  #(xmat with projected out scanned torsional modes)
+                os.chdir('me_files')
+            os.chdir('..')                        
+            print('completed')
+
+            print('Task: Building MESS input file...')
+            pf = tf + ge + hr + fr
+            io.write_file(pf+'\n', prod.strip() + '.pf')
+            print('completed')
+
+        return species, speclist
+
+    def run(self,reacs,prods,anharm,anovrwrt,node,meths):
+        """
+        Runs mess
+        """
+        import shutil
+        import heatform as hf
+        
+            
+        speciess,speclist = self.build(reacs,prods,anharm,anovrwrt,node,meths)
+
+        for i,species in enumerate(speciess):
+            deltaH = hf.main(ob.get_formula(species),'geoms/'+speclist[i] + '_l1.log')
+
+            os.system('soft add +intel-16.0.0; soft add +gcc-5.3')
+            print('Task: Running mess')
+            #o = open(species + '.pf','w')
+            #o.write(pf)
+            #o.close()
+            #io.write_file(pf, 'test.pf')
+            tc.run_pf('/home/ygeorgi/build/crossrate/partition_function', species + '.pf')
+            #os.system('~ygeorgi/build/crossrate/partition_function CCO.pf')
+            #o = open(species + '.pf','w')
+            #o.write(pf+'\n')
+            #o.close()
+            #os.system('~ygeorgi/build/crossrate/partition_function ' + species+ '.pf')
+            print('Generating thermp input.\n')
+            
+
+            #tc.write_thermp_input(species,deltaH)
+            inp = tc.get_thermp_input(species,deltaH)
+            #tc.write_thermp_input(species,deltaH)
+            print('Running thermp.\n')
+            os.rename(species + '.pf.log','pf.dat')
+            tc.run_thermp(inp,'thermp.dat','pf.dat','/home/elliott/Packages/therm/thermp.exe')
+            print ('Running pac99.\n')
+            shutil.copyfile('/home/elliott/Packages/therm/new.groups','./new.groups')
+            tc.run_pac99(species,'/home/elliott/Packages/therm/pac99.x')
+            print('Converting to chemkin format.\n')
+            chemkinfile = species + '.ckin'
+            print('Writing chemking file {0}.\n'.format(chemkinfile))
+            method = 'g09/6-31+g(d,p)'
+            tc.write_chemkin_file(deltaH, method, species, chemkinfile)
+
+            
+            print('completed')
+        return 
+
+    def extract_mess(self,filename):
+        """
+        Extracts necessary EStokTP output for MESS
+        """
+        lines = io.read_file(filename)
+        if lines == '':
+            print('failed -- ' + filename + ' is empty, check estoktp.log')
+        return lines
+
+class ARGS:
+    def __init__(self,optionfile):  
         ####DEFAULT INPUTS#########################
         self.reacs    = 'CCC'   #list of SMILE strings of reactants
         self.prods    = ''      #list of SMILE strings of products
         self.TS       = ''      #list of SMILE strings of transition states
         self.reactype = ''      #type of reaction (default well)
-        self.nTS      = 0       #Number of transition states (default 0)
+        self.nTS      = '0'     #Number of transition states (default 0)
         self.QTC      = 'True'  #QTC, Openbabel, and Pybel installed
         self.node     = 'debug' #Default node to run on in is debug (won't run)
         self.coresh   = '10'    #Default high number of cores is 10
@@ -28,42 +307,85 @@ class ES:
         self.nsteps   = '4'     #Number of steps on PES
         self.rmg      = 'false' #RMG file to give input
         self.restart  = 'false' #Point at which to restart a computation
+        self.anharm   = 'false' #Use and/or run anharmonic xmat computation
+        self.anovrwrt = 'true' #Use and/or run anharmonic xmat computation
+        self.alltherm = 'true' #Run all the thermochemistry scrips?
         ###########################################
 
-        self.get_options()      #Options from input file
-       
-    def get_options(self):
+        self.get_options(optionfile)      #Options from input file
+        self.reacs = filter(None, self.reacs)  
+        self.prods = filter(None, self.prods) 
+ 
+    def get_theory_params(self,inputlines):
+        """
+        Sets theory parameters
+        """
+        comps = {'Opt':'level0','Opt_WellP':'level0','Opt_WellR':'level0','Grid_Opt_TS':'level0',
+                           'Opt_TS_0':'level0_ts','TauO_TS':'level0_ts','Opt_1':'level1',
+                           'Opts_TS_1':'level1_ts','1dTau':'hind_rotor','MdTau':'hind_rotor',
+                           '1dTau_TS':'hind_rotor_ts','MdTau_TS':'hind_rotor_ts','Symm':'symmetry',
+                           'Symm_TS':'symmetry_ts','HL':'hlevel',
+                           'HL_TS':'hlevel_ts','Irc':'irc'}
+                   #'Opt_WellP_1':'level1','Opt_WellR_1':'level1','1dTau_WellR':'hind_rotor', 
+                   #'1dTau_WellP':'hind_rotor','MdTau_WellR':'hind_rotor','MdTau_WellP':'hind_rotor',
+                   #'Symm_WellR':'symmetry','Symm_WellP':'symmetry','HL_WellP':'hlevel','HL_WellR':'hlevel',
+        inputlines = inputlines.replace(' ','')
+        lines      = inputlines.split('------------------------------')[2].strip('-').split('\n')
+        del lines[0]
+        self.jobs  = []
+        self.meths = []
+        templist   = []
+        for line in lines:
+            line = line.strip().split(':')
+            if key_check(comps,line[0]) and line[1] != '':
+                if key_check(templist,comps[line[0]]) ==  False:
+                    self.meths.append([comps[line[0]],line[1],line[2]])
+                    templist.append(comps[line[0]])
+                self.jobs.append(line[0])
+            elif line[0] != '':
+                if line[1] != '':
+                    print (line[0] + ' is not a recognized module')
+        return
+    
+    def get_options(self,optionfile):
         """
         Gets options from the input file
         """
-        options = io.read_file('input.dat')
-
+        options = io.read_file(optionfile)
+    
         self.get_theory_params(options)
-
+    
         options      = options.split('\n')
       
-        self.reactype= self.get_param(self.reactype, 'Reaction type', options)
-        self.nTS     = self.get_param(self.reactype, 'of transition', options)
-        self.reacs   = self.get_param(self.reacs   , 'Reactant'     , options).replace(' ','').split(',')
-        self.prods   = self.get_param(self.prods   , 'Product'      , options).replace(' ','').split(',')
-        self.TS      = self.get_param(self.prods   , 'Transition'   , options).replace(' ','').split(',')
-        self.node    = self.get_param(self.node    , 'node'         , options)
-        self.coresh  = self.get_param(self.coresh  , 'cores high'   , options)
-        self.coresl  = self.get_param(self.coresl  , 'cores low'    , options)
-        self.QTC     = self.get_param(self.QTC     , 'Use QTC'      , options)
-        self.nsamps  = self.get_param(self.nsamps  , 'sampling'     , options)
-        self.interval= self.get_param(self.interval, 'interval'     , options)
-        self.nsteps  = self.get_param(self.nsteps  , 'steps'        , options)
-        self.restart = self.get_param(self.restart , 'Restart'      , options)
-
-        self.rmg     = self.get_param(self.rmg     , 'RMG input'    , options)
+        self.reactype= get_param(self.reactype, 'Reaction type', options)
+        self.nTS     = int(get_param(self.nTS     , 'of transition', options))
+        self.reacs   = get_param(self.reacs   , 'Reactant'     , options).replace(' ','').split(',')
+        self.prods   = get_param(self.prods   , 'Product'      , options).replace(' ','').split(',')
+        self.TS      = get_param(self.TS      , 'Transition'   , options).replace(' ','').split(',')
+        self.node    = get_param(self.node    , 'node'         , options)
+        self.coresh  = get_param(self.coresh  , 'cores high'   , options)
+        self.coresl  = get_param(self.coresl  , 'cores low'    , options)
+        self.QTC     = get_param(self.QTC     , 'Use QTC'      , options)
+        self.nsamps  = get_param(self.nsamps  , 'sampling'     , options)
+        self.interval= get_param(self.interval, 'interval'     , options)
+        self.nsteps  = get_param(self.nsteps  , 'steps'        , options)
+        self.restart = get_param(self.restart , 'Restart'      , options)
+        self.anharm  = get_param(self.anharm  , 'Anharmonic'   , options)
+        self.anovrwrt= get_param(self.anovrwrt, 'Overwrite an' , options)
+        self.alltherm= get_param(self.alltherm, 'thermochemist', options)
+    
+        self.rmg     = get_param(self.rmg     , 'RMG input'    , options)
         if self.rmg.lower() != 'false' and self.rmg != '':
             self.rmg_params(self.rmg)
-
+        if self.restart.lower() == 'false':
+            self.restart = 0
+        else:
+            self.restart = int(self.restart)
+    
         return
        
     def rmg_params(self,rmgfile):
-
+    
         full = io.read_file(rmgfile)
         inputs = full.split('\r\n\r\n')
         dic ={}
@@ -105,280 +427,63 @@ class ES:
                         self.ts.append(tsdic[ts][0])
         return
 
-    def build_subdirs(self):
-        
-        """
-        Builds data and output subdirectories
-        """
-        print('Task: Building directories...')
-        if not os.path.exists('./data'):
-            os.makedirs('./data') 
-        if not os.path.exists('./output'):
-            os.makedirs('./output') 
-        print('completed')
-        return
+def get_anharm(rorp,i,natom,node,anlevel,anovrwrt,species):
 
-    def build_files(self):
+    import anharm
 
-        """
-        Runs the build functions for reacn.dat, prodn.dat, theory.dat, and estoktp.dat
-        Requirements: QTC, Openbabel, Pybel (OR prepared cartesian coordinate files) and Test_Chem
-        """
-        if self.QTC.lower() == 'skip': 
-            print('Skipping build of data/*.dat')
-            self.stoich = self.reacs.split(',')[0]
-            return
+    opts= {}
+    opts['node'      ] =  node
+    opts['theory'    ] =  anlevel
+    opts['logfile'   ] = 'geoms/' + rorp +  i + '_l1.log'
+    opts['natoms'    ] =  natom 
+    opts['freqfile'  ] = 'me_files/' + rorp +  i + '_fr.me' 
+    opts['unprojfreq'] = 'me_files/' + rorp +  i + '_unpfr.me'
+    if io.check_file(species + 'anharm.log') and not anovrwrt.lower() == 'true':
+        opts['anharmlog' ] = species + 'anharm'
+        opts['writegauss'] = 'false'
+        opts['rungauss'  ] = 'false'
+    else:
+        opts['writegauss'] = 'true'
+        opts['rungauss'  ] = 'true'
+        opts['anharmlog' ] = species + 'anharm'
 
-        os.chdir('./data'
-)
-        if self.restart.lower() == 'false':
-            self.restart = 0
-        else:
-            self.restart = int(self.restart)
+    return anharm.main(opts)
 
-        if self.restart < 10: 
-            opts = (self.nsamps, self.interval,self.nsteps,self.QTC,self.jobs)
-            stoich = []
-            Reac = build.MOL(opts,'reac')
-            Prod = build.MOL(opts,'prod')
- 
-            reacs = self.reacs
-            prods = self.prods
+def get_val(opt,result,endl = 'True'):
+    """
+    Gets values we care about from a line of input file
+    """
+    if endl == 'True':
+        return opt.split(':')[result].strip('\n').strip()
+    else:
+        return opt.split(':')[result].strip()
 
-            i,j = 0,0
-            if reacs[0] != '':
-                for i, reac in enumerate(reacs,start=1):
-                    print('Task: Building reac' + str(i) + '.dat...')
-                    stoich.append(Reac.build(reac.strip(),i))
-                    print('completed')
-            if prods[0] != '':
-                for j, prod in enumerate(prods,start=1):
-                    print('Task: Building prod' + str(j) + '.dat...')
-                    stoich.append(Prod.build(prod.strip(),j))
-                    print('completed')
+def key_check(line,keyword):
+    """                                                   
+    Checks if a line of the input file has a keyword on it
+    """                                                   
+    if keyword in line:                                   
+        return True                                       
+    else:                                                 
+        return False                                    
 
-            self.stoich = stoich[0]
-            self.mol    =   reac[0]
-
-        if self.restart < 2: 
-            print('Task: Building theory.dat...')
-            theory = build.THEORY(self.meths)
-            theory.build()
-            print('completed')
-
-        if self.restart < 6:
-            print('Task: Building estoktp.dat...')
-            for i,job in enumerate(self.jobs):
-                if job == 'Opt'   and self.restart > 2:
-                    self.jobs[i]  = 'n' + job
-                if job == 'Opt_1' and self.restart > 3:
-                    self.jobs[i]  = 'n' + job
-                if job == '1dTau' and self.restart > 4:
-                    self.jobs[i]  = 'n' + job
-                if job == 'MdTau' and self.restart > 5:
-                    self.jobs[i]  = 'n' + job
-            opts    = (self.coresh,self.coresl)
-            estoktp = build.ESTOKTP(self.stoich,self.jobs,opts,i,j)
-            estoktp.build(self.reactype,self.nTS)
-            print('completed')
-
-        os.chdir('..')
-
-        return
-  
-    def execute(self):
-        """
-        Runs EStokTP on a given blues node (default b431)
-        use 0 in input file to run on login
-        use d or debug to just make input files and not run EStokTP
-        Requirements: PACC member on blues
-        """
-        print('Task: Submitting EStokTP job...')
-        if self.node == '0':
-            os.system('soft add +g09; soft add +gcc-5.3; ~/Packages/EStokTP/exe/estoktp.x > estotkp.log &')
-        elif self.node == 'd' or self.node == 'debug':
-            print('task skipped')
-            return
-        else:
-            os.system('~/bin/run_estoktp.com ' + self.node)
-        print('completed')
-        return
-    
-    def get_val(self,opt,result,endl = 'True'):
-        """
-        Gets values we care about from a line of input file
-        """
-        if endl == 'True':
-            return opt.split(':')[result].strip('\n').strip()
-        else:
-            return opt.split(':')[result].strip()
-
-    def key_check(self,line,keyword):
-        """                                                   
-        Checks if a line of the input file has a keyword on it
-        """                                                   
-        if keyword in line:                                   
-            return True                                       
-        else:                                                 
-            return False                                     
-       
-    def get_param(self,param,keyword,inputlines):
-         """
-         Sets parameter based on a keyword in inputfile
-         """
-         for line in inputlines:
-             if self.key_check(line,keyword):
-                 return  self.get_val(line,1)
-         return param
-      
-    def get_theory_params(self,inputlines):
-        """
-        Sets theory parameters
-        """
-        comps = {'Opt':'level0','Opt_WellP':'level0','Opt_WellR':'level0','Grid_Opt_TS':'level0',
-                           'Opt_TS_0':'level0_ts','TauO_TS':'level0_ts','Opt_1':'level1',
-                           'Opts_TS_1':'level1_ts','1dTau':'hind_rotor','MdTau':'hind_rotor',
-                           '1dTau_TS':'hind_rotor_ts','MdTau_TS':'hind_rotor_ts','Symm':'symmetry',
-                           'Symm_TS':'symmetry_ts','HL':'hlevel',
-                           'HL_TS':'hlevel_ts','IRC':'irc'}
-                   #'Opt_WellP_1':'level1','Opt_WellR_1':'level1','1dTau_WellR':'hind_rotor', 
-                   #'1dTau_WellP':'hind_rotor','MdTau_WellR':'hind_rotor','MdTau_WellP':'hind_rotor',
-                   #'Symm_WellR':'symmetry','Symm_WellP':'symmetry','HL_WellP':'hlevel','HL_WellR':'hlevel',
-        inputlines = inputlines.replace(' ','')
-        lines      = inputlines.split('------------------------------')[2].strip('-').split('\n')
-        del lines[0]
-        self.jobs  = []
-        self.meths = []
-        templist   = []
-        for line in lines:
-            line = line.strip().split(':')
-            if self.key_check(comps,line[0]) and line[1] != '':
-                if self.key_check(templist,comps[line[0]]) ==  False:
-                    self.meths.append([comps[line[0]],line[1],line[2]])
-                    templist.append(comps[line[0]])
-                self.jobs.append(line[0])
-            elif line[0] != '':
-                if line[1] != '':
-                    print (line[0] + ' is not a recognized module')
-        return
-
-
-class MESS:
-    def __init__(self):
-        classinit = 'notblank'
-
-    def build(self,reacs,prods):
-        """
-        Compiles together the mess data extracted from EStokTP computations
-        to form an mess input file
-        """
-        if not os.path.exists('me_files'):
-            print('failed -- me_files not found, check estoktp.log')
-            return
-        if os.path.exists(reacs.split(',')[0].strip() + '.pf'):
-            pfqtc = self.extract_mess(reacs.split(',')[0] + '.pf').split('\n') #Copy 1st section of QTC pf file
-            pf   = ''
-            for line in pfqtc:
-                #if line == 'Frequencies': #use QTC geometry
-                #   break
-                if "Species" in line:                                     #Use EStokTP geometry
-                   break
-                pf += line + '\n'
-        else:
-            pf ="Temperature(step[K],size)\t100.\t30\nRelativeTemperatureIncrement\t\t 0.001\n"
- 
-
-        for n,reac in enumerate(reacs.split(',')):
-            if reac == '':
-                break
-            print('Task: Extracting MESS data for reac' + str(n+1) + '...')
-            os.chdir('me_files')
-            ge = self.extract_mess('reac' + str(n+1) + '_1dge.me')                      #Copy EStokTP geometry
-            ge = " Species " + reac.strip() +  ge.split("Species")[1]
-            ge,ge1 = ge.split('Core')
-            hr = self.extract_mess('reac' + str(n+1) + '_hr.me')                         #Copy EStokTP hr data
-            if not 'Core' in hr:
-                ge = ge + 'Core' +ge1
-            fr = self.extract_mess('reac' + str(n+1) + '_fr.me')                 #Copy EStokTP projfrequencies
-            fr = fr.split('End')[0] + 'End  '
-            os.chdir('..')                            # (projected out scanned torsional modes)
-            print('completed')
-
-            print('Task: Building MESS input file...')
-            pf += ge + hr + fr
-            io.write_file(pf,reac.strip() + '.pf')
-            print('completed')
-        for n, prod in enumerate(prods.split(',')):
-            if prod == '':
-                break
-            print('Task: Extracting MESS data for prod' + str(n+1) + '...')
-            os.chdir('me_files')
-            ge = self.extract_mess('prod' + str(n+1) + '_1dge.me')                      #Copy EStokTP geometry
-            ge = " Species " + prod.strip() +  ge.split("Species")[1]
-            hr = self.extract_mess('prod' + str(n+1) + '_hr.me')                         #Copy EStokTP hr data
-            fr = self.extract_mess('prod' + str(n+1) + '_fr.me')                 #Copy EStokTP projfrequencies
-            fr = fr.split('End')[0] + 'End  '
-            os.chdir('..')                            # (projected out scanned torsional modes)
-            print('completed')
-
-            print('Task: Building MESS input file...')
-            pf += ge + hr + fr
-            io.write_file(pf, reac.strip() + '.pf')
-            print('completed')
-
-        return
-
-    def run(self,species):
-        """
-        Runs mess
-        """
-        import shutil 
-
-        os.system('soft add +intel-16.0.0; soft add +gcc-5.3')
-
-        print('Task: Running mess')
-        tc.run_pf('/home/ygeorgi/build/crossrate/partition_function', species + '.pf')
-        #os.system('/home/ygeorgi/build/crossrate/partition_function ' + species + '.pf')
-        print('Generating thermp input.\n')
-
-        deltaH = 10
-
-        #tc.write_thermp_input(species,deltaH)
-        inp = tc.get_thermp_input(species,deltaH)
-        #tc.write_thermp_input(species,deltaH)
-        print('Running thermp.\n')
-        os.rename(species + '.pf.log','pf.dat')
-        tc.run_thermp(inp,'thermp.dat','pf.dat','/home/elliott/Packages/therm/thermp.exe')
-        print ('Running pac99.\n')
-        shutil.copyfile('/home/elliott/Packages/therm/new.groups','./new.groups')
-        tc.run_pac99(species,'/home/elliott/Packages/therm/pac99.x')
-        print('Converting to chemkin format.\n')
-        chemkinfile = species + '.ckin'
-        print('Writing chemking file {0}.\n'.format(chemkinfile))
-        method = 'g09/6-31+g(d,p)'
-        tc.write_chemkin_file(deltaH, method, species, chemkinfile)
-
-        
-        print('completed')
-        return 
-
-    def extract_mess(self,filename):
-        """
-        Extracts necessary EStokTP output for MESS
-        """
-        lines = io.read_file(filename)
-        if lines == '':
-            print('failed -- ' + filename + ' is empty, check estoktp.log')
-        return lines
-
+def get_param(param,keyword,inputlines):
+     """
+     Sets parameter based on a keyword in inputfile
+     """
+     for line in inputlines:
+         if key_check(line,keyword):
+             return get_val(line,1)
+     return param
  
 if __name__ == "__main__":
 
-    es = ES()
+    args = ARGS('input.dat')
+    es   = ES(args)             
     if es.restart < 7:
         es.build_subdirs()
         es.build_files()
         es.execute()
-    mess = MESS()
-    mess.build(es.reacs,es.prods)
-    mess.run(es.reacs[0])
+    if args.alltherm.lower() == 'true':
+        mess = MESS()
+        mess.run(args.reacs,args.prods,args.anharm,args.anovrwrt,args.node,args.meths)

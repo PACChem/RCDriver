@@ -44,10 +44,29 @@ class MOL:
         io.write_file('\n'.join(lines), smiles + '.xyz')
 
         return stoich
+    
+    def ob_zmat(self,smiles):
+        """
+        Uses QTC interface by Murat Keceli to Openbabel to generate cartesian coorinate file based 
+        on SMILE string
+        """
+        import obtools as ob
+        
+        mol = ob.get_mol(smiles)
+        zmat = ob.get_zmat(mol)
+        atoms, measure = zmat.split('\nVariables:\n')
+        atoms = atoms.split('\n')
+        for i in range(len(atoms)):
+            atoms[i] = atoms[i].split()
+        measure = measure.split('\n')
+        del measure[-1]
+        for i in range(len(measure)):
+            measure[i] = measure[i].upper().split('= ')
+        return atoms, measure
 
     def read_cart(self,smiles): 
         """
-        Runs Test_Chem by Yuri Georgievski on a file of Cartesian coordinates and collects
+        Runs test_chem by Yuri Georgievski on a file of Cartesian coordinates and collects
         the internal coordinate and torsional angle information that it outputs
         """
         import re
@@ -68,12 +87,17 @@ class MOL:
         tempfile = 'temp'
         cart       = os.getcwd() + '/' +  smiles + '.xyz'
         os.system(self.convert + ' ' + cart + ' > ' + tempfile)
-
-        if os.stat(tempfile).st_size == 0:
-            print('failed')
+        if os.stat(tempfile).st_size < 80:
+            print('Failed')
             print('Please check that directory name and cartesian coordinate file name are equivalent')
             print('Please check that test_chem is in location: ' +  self.convert)
-            return atoms, measure, angles
+            print('Using OpenBabel zmat: no rotation dihedrals will be specified')
+            atoms, measure = self.ob_zmat(smiles) 
+            self.symnum = ' 1'
+            self.ilin   = ' 0'
+            if len(atoms) < 3:
+                self.ilin =' 1' 
+            return stoich, atoms, measure, angles
       
         #Get relevant data from Test_Chem output file
         props,lines = io.read_file(tempfile).split('Z-Matrix:\n')
@@ -93,36 +117,34 @@ class MOL:
         if lines[j].split(':')[1].rstrip('\n').strip() != '':
             angles  = lines[j].split(':')[1].strip().split(',')                #angles to scan
 
-        if re.search("molecule is (\w+)", props).groups()[0] == 'nonlinear':        #Linearity
-            self.ilin = ' 0'
-        else:
-            self.ilin = ' 1'
-           
+        #if re.search("molecule is (\w+)", props).groups()[0] == 'nonlinear':        #Linearity
+        #    self.ilin = ' 0'                                                     #JUST KIDDING THIS IS PHYSICS VERSION OF LINEARITY
+        #else:
+        #    self.ilin = ' 1'
+        self.ilin =' 0'
         self.symnum = re.search("symmetry number = (\w+)", props).groups()[0] #Symmetry factor
             
         measure = np.array(measure)                     
         measure = measure.reshape( len(measure)/2, 2)      #Puts measurements into two columns
-
-        return stoich, atoms, measure, angles
+        return stoich, atoms, measure, angles 
     
     def update_interns(self,smiles):
         """
-        Converts internal coordinate information from Test_Chem to the form for
+        Converts internal coordinate information from test_chem to the form for
         a Z-Matrix required to run EStokTP
         """
         stoich, atoms, measure, angles = self.read_cart(smiles)             #Converts ZMAT to EStokTP format
-
-        if atoms == 0:
-            return  
-
+   
+        if len(atoms) == 0:
+            return stoich, atoms, measure, angles 
         for index,atom in enumerate(atoms):
-            atoms[index][0] = atoms[index][0].lower() + str(index+1)
+            atoms[index][0] = atom[0].lower() + str(index+1)
             if len(atom) > 1:
-                atoms[index][1] = atoms[int(atoms[index][1])-1][0]
+                atoms[index][1] = atoms[int(atom[1])-1][0]
                 if len(atom) > 3:
-                    atoms[index][3] = atoms[int(atoms[index][3])-1][0]
+                    atoms[index][3] = atoms[int(atom[3])-1][0]
                     if len(atom) > 5:
-                        atoms[index][5] = atoms[int(atoms[index][5])-1][0]
+                        atoms[index][5] = atoms[int(atom[5])-1][0]
         for angle in measure:
             if 'R' in angle[0]:
                 angle[1] = str(float(angle[1]) * 0.529177) #bohr to angstrom
@@ -147,7 +169,12 @@ class MOL:
             elif atom2 in row[1]:
                 if 'h' in row[0]:
                     sym2 += 1
-        return max(sym1,sym2)
+        if sym1 == 1 or sym2 ==1:
+            return max(sym1, sym2)
+        elif sym1 == sym2:
+            return sym1 + sym2
+        else:
+            return sym1 * sym2
 
     def build(self,smiles,n):
         """ 
@@ -194,8 +221,8 @@ class MOL:
 
         #Size and linearity of molecule###########
         zmatstring += '\nnatom natomt ilin\n'
-        zmatstring += str(len(atoms)) + ' ' + str(len(atoms)) + self.ilin + '\n'
-
+        ndummy = count_dummy(atoms)
+        zmatstring += str(len(atoms)-ndummy) + ' ' + str(len(atoms)) + self.ilin + '\n'
         #Typical Z-Matrix########################
         zmatstring += '\ncharge  spin  atomlabel\n'
         zmatstring += str(self.charge) + ' ' + str(self.mult) + '\n'
@@ -239,9 +266,7 @@ class THEORY:
             theory += '\n\n'
         theory += 'End'
 
-        io.write_file(theory, 'theory.dat')
-
-        return 
+        return theory 
 
 class ESTOKTP:
     def __init__(self,stoich,jobs,opts,nreacs,nprods):
@@ -257,35 +282,72 @@ class ESTOKTP:
        """
        Builds esktoktp.dat
        """
-
+ 
        eststring  = ' Stoichiometry\t' + self.stoich.upper()
-     
-       PossibleRxns = {'addition','abstraction','isomerization','betascission','well',''}
+       
+       PossibleRxns = ['addition','abstraction','isomerization','betascission','well','']
+       Tstype       = ['TS','wellr','wellp']
+
        if reactype.lower() not in PossibleRxns:
            print('ReactionType ' + reactype +' is unrecognized, please use: Addition, Abstraction, Isomerization, or Betascission')
        elif reactype != '' and reactype.lower() != 'well':
            eststring  += '\n ReactionType\t' + reactype
            if nTS != 0:
                eststring += ' ' + str(nTS) + 'TS'
+               if nTS > 1:
+                   eststring += '\n WellR findgeom level0'
+                   if nTS > 2:
+                       eststring += '\n WellP findgeom level0'
+       if 'Irc' in self.jobs:
+           eststring += '\n Variational'
+       if self.nprods > 0:
+           eststring += '\n Prods'
+       eststring +='\n Debug  2\n'
 
-       eststring +='\n Debug  2'
-       print self.jobs
        for job in self.jobs:
            for n in range(self.nreacs):
                if 'Opt_1' in job:
                    eststring += '\n ' + job.rstrip('_1') + '_Reac' + str(n+1) + '_1'
                else:
                    eststring += '\n ' + job + '_Reac' + str(n+1)
+
            for n in range(self.nprods):
                if 'Opt_1' in job:
                    eststring += '\n ' + job.rstrip('_1') + '_Prod' + str(n+1) + '_1'
                else:
                    eststring += '\n ' +job + '_Prod' + str(n+1)
 
+           for n in range(nTS):
+               if 'Opt_1' in job:
+                   eststring += '\n ' + job.rstrip('_1') + '_' + Tstype[n]  + '_1'
+               elif 'Tau' in job:
+                   if n < 1:
+                       eststring += '\n ' +job + '_' + Tstype[n] 
+               elif 'Opt' in job and not 'Opt_1' in job and n < 1: 
+                   eststring += '\n Grid_' + job + '_' + Tstype[n]
+                   eststring += '\n ' + job + '_' + Tstype[n] + '_0'
+                   eststring += '\n Tauo_' + Tstype[n]
+               else:
+                   eststring += '\n ' + job + '_' + Tstype[n]
+                   
+           eststring += '\n'
+
        eststring += '\nEnd'
        eststring += '\n ' + self.coresh + ',' + self.coresl + '\n numprocll,numprochl\n'
        eststring += ' 200MW  300MW\n gmemll gmemhl\n'
-       io.write_file(eststring, 'estoktp.dat')
 
-       return 
+       return eststring
 
+def is_dummy(atom):
+   if 'xe' in atom.lower():
+      return False
+   elif 'x' in atom.lower():
+      return True
+   return False
+
+def count_dummy(atoms):
+  dummy = 0
+  for atom in atoms:
+      if is_dummy(atom[0]):
+          dummy += 1
+  return dummy

@@ -1,11 +1,18 @@
+Restart at: 0
+(0 - beginning, 1 - reac/prod/ts.dat files already created, 
+ 2 - estoktp/theory files already created, 3 - estoktp level 0 successfully completed
+ 4 - estoktp level 1 successfully completed, 5 - estoktp 1D successfully completed, 
+ 6 - estoktp MD successfully completed or not desired, 7 - )
+
 ============
 RMG and/or manual species input
 ============
-RMG inputfile (false for manual): rmg_input_example.py
+RMG inputfile (false for manual): false
+rmg_input_example.py
 
 Reaction type: Addition 
-Reactant list (SMILES): CC, C
-Product  list (SMILES): CCC
+Reactant list (SMILES): C
+Product  list (SMILES): 
 Transition State  list:
 
 
@@ -38,10 +45,3 @@ Symm           :               :
 HL             :               :
 MdTau          :               :
 ------------------------------------------------
-
-
-Restart at: 0
-(0 - beginning, 1 - reac/prod/ts.dat files already created, 
- 2 - estoktp/theory files already created, 3 - estoktp level 0 successfully completed
- 4 - estoktp level 1 successfully completed, 5 - estoktp 1D successfully completed, 
- 6 - estoktp MD successfully completed or not desired, 7 - )
