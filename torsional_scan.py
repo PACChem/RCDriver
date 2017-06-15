@@ -61,48 +61,76 @@ class ES:
         os.chdir('./data')
 
         if self.restart < 10: 
-            opts = (self.nsamps, self.interval,self.nsteps,self.QTC,self.jobs)
+
             stoich = []
-            Reac = build.MOL(opts,'reac')
-            Prod = build.MOL(opts,'prod')
- 
+
+            params = (self.nsamps, self.interval,self.nsteps,self.QTC,'MdTau' in self.jobs)
+            Reac = build.MOL(params,'reac')
+            Prod = build.MOL(params,'prod')
+            
+            params = (str(int(self.nsamps)*2), self.interval,self.nsteps,self.QTC,'MdTau' in self.jobs)
+            TS   = build.MOL(params,'ts') 
+
             reacs = self.reacs
             prods = self.prods
 
-            i,j = 0,0
+            i,j,k = 0,0,0
+            TScharge, TSmult = 0, 0
             for i, reac in enumerate(reacs,start=1):
                 print('Task: Building reac' + str(i) + '.dat...')
-                stoich.append(Reac.build(reac.strip(),i))
+                atoms, measure, angles = Reac.cart2zmat(reac)
+                zmatstring = Reac.build(i, angles, atoms,  measure)
+                zmat = Reac.typemol +str(i) + '.dat'
+                io.write_file(zmatstring, zmat)
+                if self.nTS > 0:
+                    TScharge += Reac.charge
+                    TSmult   += Reac.mult
+                    if i == 1:
+                        TSangles, TSatoms  = angles, atoms
+                stoich.append(Reac.stoich)
                 print('completed')
+
             for j, prod in enumerate(prods,start=1):
                 print('Task: Building prod' + str(j) + '.dat...')
-                stoich.append(Prod.build(prod.strip(),j))
+                atoms, measure, angles = Prod.cart2zmat(prod)
+                zmatstring = Prod.build(j, angles, atoms, measure)
+                zmat = Prod.typemol +str(j) + '.dat'
+                io.write_file(zmatstring, zmat)
+                stoich.append(Prod.stoich)
                 print('completed')
+
+            tstype = ['ts','wellr','wellp']
+            for k in range(self.nTS):
+                print('Task: Building ' + tstype[k] +  '.dat...')
+                TS.charge = TScharge
+                TS.mult   = TSmult
+                TS.symnum = ' 1'
+                zmatstring =TS.build(tstype[k], TSangles, TSatoms)
+                zmat = tstype[k] + '.dat'
+                io.write_file(zmatstring, zmat)
 
             self.stoich = stoich[0]
             self.mol    =   reac[0]
 
         if self.restart < 2: 
             print('Task: Building theory.dat...')
-            theory = build.THEORY(self.meths)
-            theostring = theory.build()
+            theostring = build.build_theory(self.meths,self.nTS)
             io.write_file(theostring, 'theory.dat')
             print('completed')
 
         if self.restart < 7:
             print('Task: Building estoktp.dat...')
-            for k,job in enumerate(self.jobs):
+            for l,job in enumerate(self.jobs):
                 if job == 'Opt'   and self.restart > 2:
-                    self.jobs[k]  = 'n' + job
+                    self.jobs[l]  = 'n' + job
                 if job == 'Opt_1' and self.restart > 3:
-                    self.jobs[k]  = 'n' + job
+                    self.jobs[l]  = 'n' + job
                 if job == '1dTau' and self.restart > 4:
-                    self.jobs[k]  = 'n' + job
+                    self.jobs[l]  = 'n' + job
                 if job == 'MdTau' and self.restart > 5:
-                    self.jobs[k]  = 'n' + job
-            opts    = (self.coresh,self.coresl)
-            estoktp = build.ESTOKTP(self.stoich,self.jobs,opts,i,j)
-            eststring = estoktp.build(self.reactype,self.nTS)
+                    self.jobs[l]  = 'n' + job
+            params    = (self.stoich, self.reactype, self.coresh,self.coresl,self)
+            eststring = build.build_estoktp(params,self.jobs,i,j,self.nTS)
             io.write_file(eststring, 'estoktp.dat')
             print('completed')
 
@@ -249,22 +277,11 @@ class MESS:
 
             os.system('soft add +intel-16.0.0; soft add +gcc-5.3')
             print('Task: Running mess')
-            #o = open(species + '.pf','w')
-            #o.write(pf)
-            #o.close()
-            #io.write_file(pf, 'test.pf')
             tc.run_pf('/home/ygeorgi/build/crossrate/partition_function', species + '.pf')
-            #os.system('~ygeorgi/build/crossrate/partition_function CCO.pf')
-            #o = open(species + '.pf','w')
-            #o.write(pf+'\n')
-            #o.close()
-            #os.system('~ygeorgi/build/crossrate/partition_function ' + species+ '.pf')
             print('Generating thermp input.\n')
             
-
-            #tc.write_thermp_input(species,deltaH)
-            inp = tc.get_thermp_input(species,deltaH)
-            #tc.write_thermp_input(species,deltaH)
+            stoich = ob.get_formula(ob.get_mol(species))
+            inp = tc.get_thermp_input(stoich,deltaH)
             print('Running thermp.\n')
             os.rename(species + '.pf.log','pf.dat')
             tc.run_thermp(inp,'thermp.dat','pf.dat','/home/elliott/Packages/therm/thermp.exe')
