@@ -16,7 +16,8 @@ class ES:
 
         #for reac/prod/ts.dat
         self.restart =   args.restart 
-        self.QTC     =   args.QTC      
+        self.XYZ     =   args.XYZ      
+        self.xyzstart=   args.xyzstart
         self.reacs   =   args.reacs    
         self.prods   =   args.prods    
         self.reactype=   args.reactype   
@@ -53,29 +54,32 @@ class ES:
         Runs the build functions for reacn.dat, prodn.dat, theory.dat, and estoktp.dat
         Requirements: QTC, Openbabel, Pybel (OR prepared cartesian coordinate files) and Test_Chem
         """
-        if self.QTC.lower() == 'skip': 
-            print('Skipping build of data/*.dat')
-            self.stoich = self.reacs[0]
-            return
-
         os.chdir('./data')
 
         if self.restart < 10: 
 
             stoich = []
 
-            params = (self.nsamps, self.interval,self.nsteps,self.QTC,'MdTau' in self.jobs)
+            params = (self.nsamps, self.interval,self.nsteps,self.XYZ,self.xyzstart,'MdTau' in self.jobs)
             Reac = build.MOL(params,'reac')
             Prod = build.MOL(params,'prod')
             
-            params = (str(int(self.nsamps)*2), self.interval,self.nsteps,self.QTC,'MdTau' in self.jobs)
+            params = (str(int(self.nsamps)*2), self.interval,self.nsteps,self.XYZ,'start','MdTau' in self.jobs)
             TS   = build.MOL(params,'ts') 
 
             reacs = self.reacs
             prods = self.prods
+            
+            if 'abstraction' in self.reactype.lower():
+                key = ['[CH3]','[O]','[O][O]','O[O]','[OH]','[H]']
+            elif  'addition' in self.reactype.lower():
+                key = ['[O][O]']
+            else: 
+                key = []
 
             i,j,k = 0,0,0
-            TScharge, TSmult = 0, 0
+            TScharge, TSspin = 0, 0
+
             for i, reac in enumerate(reacs,start=1):
                 print('Task: Building reac' + str(i) + '.dat...')
                 atoms, measure, angles = Reac.cart2zmat(reac)
@@ -84,9 +88,13 @@ class ES:
                 io.write_file(zmatstring, zmat)
                 if self.nTS > 0:
                     TScharge += Reac.charge
-                    TSmult   += Reac.mult
+                    TSspin   += 1./2 * (Reac.mult - 1)
                     if i == 1:
                         TSangles, TSatoms  = angles, atoms
+                    elif reac in key:
+                        import shutil
+                        shutil.copyfile('/home/elliott/Packages/TorsScan/abstractors/' + reac + '.dat','reac2.dat')
+                        
                 stoich.append(Reac.stoich)
                 print('completed')
 
@@ -103,22 +111,30 @@ class ES:
             for k in range(self.nTS):
                 print('Task: Building ' + tstype[k] +  '.dat...')
                 TS.charge = TScharge
-                TS.mult   = TSmult
+                TS.mult   = int(2.*TSspin + 1)
                 TS.symnum = ' 1'
-                zmatstring =TS.build(tstype[k], TSangles, TSatoms)
+                if k == 0:
+                    zmatstring =TS.build(tstype[k], TSangles, TSatoms)
+                else:
+                    params = ('1', self.interval,self.nsteps,'False','start','MdTau' in self.jobs)
+                    TS   = build.MOL(params,'ts') 
+                    TS.charge = TScharge
+                    TS.mult   = int(2.*TSspin + 1)
+                    TS.symnum = ' 1'
+                    zmatstring =TS.build(tstype[k], [], [])
                 zmat = tstype[k] + '.dat'
                 io.write_file(zmatstring, zmat)
 
             self.stoich = stoich[0]
             self.mol    =   reac[0]
 
-        if self.restart < 2: 
+        if self.restart < 7:
+
             print('Task: Building theory.dat...')
             theostring = build.build_theory(self.meths,self.nTS)
             io.write_file(theostring, 'theory.dat')
             print('completed')
 
-        if self.restart < 7:
             print('Task: Building estoktp.dat...')
             for l,job in enumerate(self.jobs):
                 if job == 'Opt'   and self.restart > 2:
@@ -315,7 +331,8 @@ class ARGS:
         self.TS       = ''      #list of SMILE strings of transition states
         self.reactype = ''      #type of reaction (default well)
         self.nTS      = '0'     #Number of transition states (default 0)
-        self.QTC      = 'True'  #QTC, Openbabel, and Pybel installed
+        self.XYZ      = 'True'  #Optimized XYZ provided
+        self.xyzstart = 'start'  #Optimized XYZ provided
         self.node     = 'debug' #Default node to run on in is debug (won't run)
         self.coresh   = '10'    #Default high number of cores is 10
         self.coresl   = '6'     #Default low number of cores is 10
@@ -375,14 +392,15 @@ class ARGS:
         options      = options.split('\n')
       
         self.reactype= get_param(self.reactype, 'Reaction type', options)
-        self.nTS     = int(get_param(self.nTS     , 'of transition', options))
+        self.nTS     = int(get_param(self.nTS , 'of transition', options))
         self.reacs   = get_param(self.reacs   , 'Reactant'     , options).replace(' ','').split(',')
         self.prods   = get_param(self.prods   , 'Product'      , options).replace(' ','').split(',')
         self.TS      = get_param(self.TS      , 'Transition'   , options).replace(' ','').split(',')
         self.node    = get_param(self.node    , 'node'         , options)
         self.coresh  = get_param(self.coresh  , 'cores high'   , options)
         self.coresl  = get_param(self.coresl  , 'cores low'    , options)
-        self.QTC     = get_param(self.QTC     , 'Use QTC'      , options)
+        self.XYZ     = get_param(self.XYZ     , 'Use QTC'      , options)
+        self.xyzstart= get_param(self.xyzstart, 'Use xyz as'   , options)
         self.nsamps  = get_param(self.nsamps  , 'sampling'     , options)
         self.interval= get_param(self.interval, 'interval'     , options)
         self.nsteps  = get_param(self.nsteps  , 'steps'        , options)
@@ -494,6 +512,22 @@ def get_param(param,keyword,inputlines):
      return param
  
 if __name__ == "__main__":
+   
+    print("""\t\t   TORSSCAN
+                    _,--._
+                  ,'      `.
+          |\     /          \     /|
+          )o),/ ( ,--,  ,--, ) \.(o(
+         /o/// /|            |\ \\ \\o\\
+        / / |\ \(   .----,   )/ /| \ \\
+        | | \o`-/    `--'    \-'o/ | |
+        \ \  `,'              `.'  / /
+     \.  \ `-'  ,'|   /\   |`.  `-' /  ,/
+      \`. `.__,' /   /  \   \ `.__,' ,'/
+       \o\     ,'  ,'    `.  `.     /o/
+        \o`---'  ,'        `.  `---'o/
+         `.____,'           `.____,'  """)
+
 
     args = ARGS('input.dat')
     es   = ES(args)             
@@ -501,6 +535,28 @@ if __name__ == "__main__":
         es.build_subdirs()
         es.build_files()
         es.execute()
+    import parse 
+    for i,reac in enumerate(args.reacs, start=1):
+        lines = io.read_file('geoms/reac' + str(i) + '_l1.log')
+        print('=====================\n          '+reac+'\n=====================')
+        print 'Method: ' +      parse.gaussian_method(  lines)
+        print 'Basis:  ' +      parse.gaussian_basisset(lines)
+        print 'Energy: ' +  str(parse.gaussian_energy(  lines))
+        print 'Zmatrix:' +      parse.gaussian_zmat(lines)
+    for i,prod in enumerate(args.prods, start=1):
+        lines = io.read_file('geoms/prod' + str(i) + '_l1.log')
+        print('=====================\n          '+prod+'\n=====================')
+        print 'Method: ' +      parse.gaussian_method(  lines)
+        print 'Basis:  ' +      parse.gaussian_basisset(lines)
+        print 'Energy: ' +  str(parse.gaussian_energy(  lines))
+        print 'Zmatrix:' +      parse.gaussian_zmat(lines)
+    if args.nTS > 0:
+        lines = io.read_file('geoms/tsgta_l1.log')
+        print('=====================\n        TS\n=====================')
+        print 'Method: ' +      parse.gaussian_method(  lines)
+        print 'Basis:  ' +      parse.gaussian_basisset(lines)
+        print 'Energy: ' +  str(parse.gaussian_energy(  lines))
+        print 'Zmatrix:' +      parse.gaussian_zmat(lines)
     if args.alltherm.lower() == 'true':
         mess = MESS()
         mess.run(args.reacs,args.prods,args.anharm,args.anovrwrt,args.node,args.meths)

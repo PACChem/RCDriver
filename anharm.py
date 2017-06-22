@@ -4,7 +4,7 @@ import numpy as np
 
 sys.path.insert(0, '/home/elliott/Packages/QTC/')
 import iotools as io
-
+import qctools as qc
 
 def gauss_xmat(filename,natoms):
     """
@@ -230,9 +230,10 @@ def main(args):
             write_anharm_inp(eskfile,anharminp,anlevel)
         if args['rungauss'] == 'true':
             run_gauss(anharminp,node)
-        xmat = gauss_xmat(anharmlog,natoms)
         proj, b   = get_freqs(eskproj)
         unproj, a = get_freqs(eskunproj)
+        #xmat = gauss_xmat(anharmlog,natoms)
+        xmat = qc.get_gaussian_xmatrix(io.read_file(anharmlog),len(unproj))
         modes     = find_hinfreqs(proj,unproj,a)
         xmat      = remove_modes(xmat,modes)
         proj, b   = get_freqs(eskproj)

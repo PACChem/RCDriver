@@ -3,37 +3,33 @@
 import os
 import numpy as np
 import sys
-
+import parse as pa
 sys.path.insert(0, '/home/elliott/Packages/QTC/')
 import iotools as io
+import obtools as ob
 
 class MOL:
     def __init__(self,opts,typemol = 'reac'):
        
         self.convert    = io.get_path('/home/elliott/Packages/TorsScan/test_chem') 
         self.typemol    = typemol
-
         #OPTIONS##############################
         self.nsamps     = opts[0]    #number of MonteCarlo sampling points
         self.interval   = opts[1]    #Interval for tors scan (should be same geometry as 0 degree)
         self.nsteps     = opts[2]    #Number of points to take on PES
-        self.QTC        = opts[3]    #if QTC, openbabel, and pybel are not importable, self.QTC = 'False' 
-                                     #be sure to have cartesian <SMILE string>.xyz in data/ (ex. CCC.xyz)
-        self.MDTAU      = opts[4]
+        self.XYZ        = opts[3]    #if QTC provides XYZ, 'true' (smiles.xyz), logfile 'anything.log', or just use smiles 'false'
+        self.xyzstart   = opts[4]
+        self.MDTAU      = opts[5]
+        
         ######################################
- 
 
     def build_cart(self,smiles):
         """
         Uses QTC interface by Murat Keceli to Openbabel to generate cartesian coorinate file based 
         on SMILE string
         """
-        import obtools as ob
         
         mol         = ob.get_mol(smiles)
-        self.charge = ob.get_charge(mol)
-        self.mult   = ob.get_multiplicity(mol)
-        self.stoich = ob.get_formula(mol)
 
         lines       =  ob.get_xyz(mol).split('\n')
 
@@ -46,8 +42,7 @@ class MOL:
     
     def ob_zmat(self,smiles):
         """
-        Uses QTC interface by Murat Keceli to Openbabel to generate cartesian coorinate file based 
-        on SMILE string
+        Uses QTC interface by Murat Keceli to Openbabel to generate zmat file based on smile string
         """
         import obtools as ob
         
@@ -75,18 +70,25 @@ class MOL:
         measure = []
         angles  = []
 
-        if self.QTC.lower() == 'true':
+        if self.XYZ.lower() == 'false':
             self.build_cart(smiles)
+        elif '.log' in self.XYZ.lower():
+            cartlines = io.read_file('../' + self.XYZ)
+            io.write_file(pa.gaussian_xyz(cartlines),smiles + '.xyz')
+        elif self.XYZ.lower() == 'true':
+            cartlines = io.read_file('../' + smiles + '.xyz')
+            io.write_file(cartlines,smiles + '.xyz')
 
-        else:              #If we can't use QTC to build_cart we assume an xyz is given and hope default charge/mult work
-            self.charge = 0
-            self.mult   = 1
-            self.stoich = smiles
+        mol         = ob.get_mol(smiles)
+        self.charge = ob.get_charge(mol)
+        self.mult   = ob.get_multiplicity(mol)
+        self.stoich = ob.get_formula(mol)
 
         #Peform Test_Chem#########################3
         tempfile = 'temp'
-        cart       = os.getcwd() + '/' +  smiles + '.xyz'
+        cart       = os.getcwd() + '/' +  smiles.replace('[','\[').replace(']','\]') + '.xyz'
         os.system(self.convert + ' ' + cart + ' > ' + tempfile)
+
         if os.stat(tempfile).st_size < 80:
             print('Failed')
             print('Please check that directory name and cartesian coordinate file name are equivalent')
@@ -102,7 +104,6 @@ class MOL:
         #Get relevant data from Test_Chem output file########
         props,lines = io.read_file(tempfile).split('Z-Matrix:\n')
         io.rm(tempfile)
-
         lines = lines.split('\n')
         for i,line in enumerate(lines):
             if line == '':
@@ -150,13 +151,20 @@ class MOL:
             ndummy = count_dummy(atoms)
             zmatstring += str(len(atoms)-ndummy) + ' ' + str(len(atoms)) + self.ilin + '\n'
 
-        elif n == 'ts':
 
+        else:
+
+            sys.path.insert(0, '/home/elliott/scripts')
+            import get_sites
             #Torsional Scan Parameters#############
             zmatstring += tau_hind_str(atoms, angles, self.interval, self.nsteps, self.MDTAU)
 
-            #i,j,k sites###########################
-        
+            if n == 'ts':
+                #i,j,k sites###########################
+                zmatstring += '\nisite jsite ksite\n'
+                lines = io.read_file('../rmg.dat')
+                zmatstring += ' '.join(get_sites.sites(lines))
+                zmatstring += '\n\nrmin rmax nr\n 1.0 2.5 8\n  -->aabs1,babs1,aabs2,babs2,babs3\n 90., 180., 90., 175., 90.\n'
 
     
         #Typical Z-Matrix########################
@@ -178,16 +186,88 @@ class MOL:
                         measure = np.array([np.delete(measure.T[0],i),np.delete(measure.T[1],i)]).T
             for meas in measure:
                 zmatstring += '\n' + meas[0] + ' ' + meas[1]
-
+            
+            zmatstring += '\n'
         #Sym factor and no. of electronic states#
-        zmatstring += '\n\nSymmetryFactor\n' + self.symnum + '\n'
-        zmatstring += '\nnelec\n1\n 0.  1.\n\nend\n'
+        zmatstring += '\nSymmetryFactor\n' + self.symnum + '\n'
+        zmatstring += '\nnelec\n1\n 0.  ' + str(self.mult) + '\n\nend\n'
+
+        #Build Reac/Prodnum_opt.out for starting after level0 or level1
+        if '0' in self.xyzstart:
+            optim = 'opt geom           1'
+            for meas in measure:
+                optim += '\n\t' + meas[1]              
+            for i in range(len(angles)):
+                optim += '\n\t60'             
+            optim += '\n\t' + str(pa.gaussian_energy(io.read_file('../' + self.XYZ)))
+            io.write_file(optim, '../output/' + self.typemol + str(n) + '_opt.out')
+        elif '1' in self.xyzstart:
+            optim = 'opt level1 0'
+            for meas in measure:
+                optim += '\n\t' + meas[1]                
+            for i in range(len(angles)):
+                optim += '\n\t60'             
+            io.write_file(optim, '../output/' + self.typemol + str(n) + '_opt.out')
 
         return zmatstring
+
+def build_molpro(meth,freqcalc):
+    """
+    Builds molpro theory file 
+    """
+    method, basis = meth[2].split('/')
+    nondft = ['hf', 'ccsd', 'cisd']
+    dft = True
+    for key in nondft:
+        if key in method:
+            dft = False
+    molstr  = 'nosym\nEnd1\n\n'
+    molstr += '!closed shell input\n\nbasis=' + basis +'\n'
+    if dft:
+        molstr += 'dft=['+method+']\n'
+        molstr += 'hf\ndft'
+    else:
+        molstr += 'hf\n' + method 
+    molstr += '\noptg\n'
+    if freqcalc == 'on':
+        molstr += 'frequencies,symm=auto,numerical\n'
+    molstr += 'ENERGY=energy\n\n'
+    molstr += '! these lines must be always included in molpro input\n'
+    molstr += '! CBSen should be defined as desired\n'
+    molstr += '! the molden line should be left as it is\n\nput,molden,molpro.molden\n\n---\n\n'
+    molstr += 'End2\n\n!open shell input\n\n'
+    molstr += 'basis=' + basis +'\n'
+    if dft:
+        molstr += 'dft=['+method+']\n'
+        molstr += 'uhf\ndft'
+    elif 'ccsd' in method:
+        molstr += 'rhf\n' + 'U' + method 
+    else:
+        molstr += 'uhf\n' + method 
+    molstr += '\noptg\n'
+    if freqcalc == 'on':
+        molstr += 'frequencies,symm=auto,numerical\n'
+    molstr += 'ENERGY=energy\n\n'
+    molstr += '! these lines must be always included in molpro input\n'
+    molstr += '! CBSen should be defined as desired\n'
+    molstr += '! the molden line should be left as it is\n\nput,molden,molpro.molden\n\n---\n\n'
+    molstr += 'End3\n\n\n\n'
+
+    molfile = meth[0]
+    if 'hind' in molfile:
+        molfile = 'onedtau'
+    if 'hlevel' in molfile:
+        molfile = 'hl'
+    if 'symm' in molfile:
+        molfile = 'symm'
+    molfile += '_molpro.dat'
+    return molstr, molfile
+
 
 def build_theory(meths,nTS):
     """
     Builds theory.dat 
+    meth[0] is module, meth[1] is program, and meth[2] is theory/basis
     """
     theory    = ''
     tsopt  = ' opt=(ts,calcfc,noeig,intern,maxcyc=50)\n '
@@ -196,27 +276,42 @@ def build_theory(meths,nTS):
     allint = 'int=ultrafine nosym '
 
     for meth in meths:
-        theory += meth[0] + ' ' + meth[1] + '\n '
-        theory += meth[2] + rpopt + allint
-        if meth[0] == 'level1':
-            theory += ' freq'
-        theory += '\n\n'
-        if nTS > 2 and meth[0] == 'level1':
-            theory += meth[0] + '_61 ' + meth[1] + '\n '
-            theory += meth[2] + vwopt + allint
-            theory += ' freq\n\n'
-        if nTS > 1 and meth[0] == 'level1':
-            theory += meth[0] + '_51 ' + meth[1] + '\n '
-            theory += meth[2] + vwopt + allint
-            theory += ' freq\n\n'
-        if nTS > 0 and meth[0] != 'hlevel' and meth[0] != 'irc':
-            theory += meth[0] + '_ts ' + meth[1] + '\n '
-            theory += meth[2] + tsopt + allint
+
+        if 'molpro' in meth[1]:
+
+            theory += meth[0] + ' ' + meth[1] + '\n\n'
+            if meth[0] == 'level1':
+                freqcalc = 'on'
+            else:
+                freqcalc = 'off'
+            molpro  = build_molpro(meth,freqcalc)
+            io.write_file(molpro[0], molpro[1])
+
+        elif  'g09' in meth[1]:   
+
+            theory += meth[0] + ' ' + meth[1] + '\n '
+            theory += meth[2] + rpopt + allint
             if meth[0] == 'level1':
                 theory += ' freq'
-            if meth[0] == 'hind_rotor':
-                theory += '\n ' + meth[2] + rpopt + allint
             theory += '\n\n'
+            if nTS > 2 and meth[0] == 'level1':
+                theory += meth[0] + '_61 ' + meth[1] + '\n '
+                theory += meth[2] + vwopt + allint
+                theory += ' freq\n\n'
+            if nTS > 1 and meth[0] == 'level1':
+                theory += meth[0] + '_51 ' + meth[1] + '\n '
+                theory += meth[2] + vwopt + allint
+                theory += ' freq\n\n'
+            if nTS > 0 and meth[0] != 'hlevel' and meth[0] != 'irc':
+                theory += meth[0] + '_ts ' + meth[1] + '\n '
+                theory += meth[2] + tsopt + allint
+                if meth[0] == 'level1':
+                    theory += ' freq'
+                if meth[0] == 'hind_rotor':
+                    theory += '\n ' + meth[2] + rpopt + allint
+                theory += '\n\n'
+        else:
+            print meth[0] + ' is not a recognized program.\n'
             
     theory += 'End'
 
@@ -224,7 +319,7 @@ def build_theory(meths,nTS):
 
 def build_estoktp(params, jobs, nreacs, nprods, nTS):
     """
-    Builds esktoktp.dat
+    Builds estoktp.dat
     """
     stoich    = params[0]
     reactype  = params[1]
@@ -239,9 +334,9 @@ def build_estoktp(params, jobs, nreacs, nprods, nTS):
     if reactype.lower() not in PossibleRxns:
         print('ReactionType ' + reactype +' is unrecognized, please use: Addition, Abstraction, Isomerization, or Betascission')
     elif reactype != '' and reactype.lower() != 'well':
-        eststring  += '\n ReactionType\t' + reactype
+        eststring  += '\n ReactionType   ' + reactype
         if nTS != 0:
-            eststring += ' ' + str(nTS) + 'TS'
+            eststring += '  ' + str(nTS) + 'TS'
             if nTS > 1:
                 eststring += '\n WellR findgeom level0'
                 if nTS > 2:
@@ -271,10 +366,13 @@ def build_estoktp(params, jobs, nreacs, nprods, nTS):
             elif 'Tau' in job:
                 if n < 1:
                     eststring += '\n ' +job + '_' + Tstype[n] 
-            elif 'Opt' in job and not 'Opt_1' in job and n < 1: 
+            elif 'Opt' in job and n <1:
                 eststring += '\n Grid_' + job + '_' + Tstype[n]
                 eststring += '\n ' + job + '_' + Tstype[n] + '_0'
-                eststring += '\n Tauo_' + Tstype[n]
+                if 'nOpt' in job:
+                    eststring += '\n nTauo_' + Tstype[n]
+                else:
+                    eststring += '\n Tauo_' + Tstype[n]
             else:
                 eststring += '\n ' + job + '_' + Tstype[n]
                 
@@ -364,8 +462,8 @@ def tau_hind_str(atoms, angles, interval, nsteps, MDTAU):
         string += '\nnhind2D\n'
         string += str(len(angles)/2) + '\n'
         string += ' -->namehind,hindmin,hindmax,nhindsteps,period\n'
-        for hin in hind:
+        for hin in angles:
             periodicity = find_period(atoms, hin)
-            string += hin + ' 0 ' + str(int(self.interval)/periodicity) + ' ' + nsteps + ' ' + str(periodicity)  + '\n'   
+            string += hin + ' 0 ' + str(int(interval)/periodicity) + ' ' + nsteps + ' ' + str(periodicity)  + '\n'   
     return string
 
