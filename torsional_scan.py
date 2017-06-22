@@ -284,7 +284,7 @@ class MESS:
         """
         import shutil
         import heatform as hf
-        
+        import re
             
         speciess,speclist = self.build(reacs,prods,anharm,anovrwrt,node,meths)
 
@@ -301,18 +301,22 @@ class MESS:
             print('Running thermp.\n')
             os.rename(species + '.pf.log','pf.dat')
             tc.run_thermp(inp,'thermp.dat','pf.dat','/home/elliott/Packages/therm/thermp.exe')
+            lines = io.read_file('thermp.out')
+            deltaH298 = ' h298 final\s*([\d,\-,\.]*)'
+            deltaH298 = re.findall(deltaH298,lines)[-1]
             print ('Running pac99.\n')
             shutil.copyfile('/home/elliott/Packages/therm/new.groups','./new.groups')
+            shutil.copyfile(stoich + '.i97',species + '.i97')
             tc.run_pac99(species,'/home/elliott/Packages/therm/pac99.x')
             print('Converting to chemkin format.\n')
             chemkinfile = species + '.ckin'
             print('Writing chemking file {0}.\n'.format(chemkinfile))
-            method = 'g09/6-31+g(d,p)'
+            method = meths[-1][2]
             tc.write_chemkin_file(deltaH, method, species, chemkinfile)
 
             
             print('completed')
-        return 
+        return deltaH, deltaH298
 
     def extract_mess(self,filename):
         """
@@ -536,6 +540,9 @@ if __name__ == "__main__":
         es.build_files()
         es.execute()
     import parse 
+    if args.alltherm.lower() == 'true':
+        mess = MESS()
+        deltaH, deltaH298 = mess.run(args.reacs,args.prods,args.anharm,args.anovrwrt,args.node,args.meths)
     for i,reac in enumerate(args.reacs, start=1):
         lines = io.read_file('geoms/reac' + str(i) + '_l1.log')
         print('=====================\n          '+reac+'\n=====================')
@@ -543,6 +550,8 @@ if __name__ == "__main__":
         print 'Basis:  ' +      parse.gaussian_basisset(lines)
         print 'Energy: ' +  str(parse.gaussian_energy(  lines))
         print 'Zmatrix:' +      parse.gaussian_zmat(lines)
+        print 'Heat of formation(  0K): ' + str(deltaH) + ' kcal /' + str(deltaH/.00038088/ 627.503) + ' kJ'
+        print 'Heat of formation(298K): ' + deltaH298   + ' kcal /' + str(float(deltaH298)/.00038088/ 627.503) + ' kJ'
     for i,prod in enumerate(args.prods, start=1):
         lines = io.read_file('geoms/prod' + str(i) + '_l1.log')
         print('=====================\n          '+prod+'\n=====================')
@@ -550,6 +559,8 @@ if __name__ == "__main__":
         print 'Basis:  ' +      parse.gaussian_basisset(lines)
         print 'Energy: ' +  str(parse.gaussian_energy(  lines))
         print 'Zmatrix:' +      parse.gaussian_zmat(lines)
+        print 'Heat of formation(  0K): ' + str(deltaH) + ' kcal /' + str(deltaH/.00038088/ 627.503) + ' kJ'
+        print 'Heat of formation(298K): ' + deltaH298   + ' kcal /' + str(float(deltaH298)/.00038088/ 627.503) + ' kJ'
     if args.nTS > 0:
         lines = io.read_file('geoms/tsgta_l1.log')
         print('=====================\n        TS\n=====================')
@@ -557,6 +568,5 @@ if __name__ == "__main__":
         print 'Basis:  ' +      parse.gaussian_basisset(lines)
         print 'Energy: ' +  str(parse.gaussian_energy(  lines))
         print 'Zmatrix:' +      parse.gaussian_zmat(lines)
-    if args.alltherm.lower() == 'true':
-        mess = MESS()
-        mess.run(args.reacs,args.prods,args.anharm,args.anovrwrt,args.node,args.meths)
+        print 'Heat of formation(  0K): ' + str(deltaH) + ' kcal /' + str(deltaH/.00038088/ 627.503) + ' kJ'
+        print 'Heat of formation(298K): ' + deltaH298   + ' kcal /' + str(float(deltaH298)/.00038088/ 627.503) + ' kJ'

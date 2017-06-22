@@ -420,13 +420,13 @@ def main(mol,logfile='geoms/reac1_l1.log', E=9999.9, basis='auto', theory='auto/
 
     #COMPUTE AND PRINT delH###
     E =  comp_energy(mol,basis,clist,E,theory,basisset)
-    lines =  '\n        delHf(0K) \t Uncert'
+    lines =  '\n        delHf(0K)'
     lines += '\nA.U. \t'
-    for e in E:  lines += str(e) + '\t'
+    for e in E[:1]:  lines += str(e) + '\t'
     lines += '\nkJ   \t'
-    for e in E:  lines += str(e/ .00038088) + '\t'
+    for e in E[:1]:  lines += str(e/ .00038088) + '\t'
     lines += '\nkcal   \t'
-    for e in E:  lines += str(e *  627.503) + '\t'
+    for e in E[:1]:  lines += str(e *  627.503) + '\t'
     lines += '\n\n-------------------------------------------------\n\n'
     print lines
     ##########################

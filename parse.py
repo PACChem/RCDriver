@@ -80,7 +80,7 @@ def gaussian_xyz(lines):
     atom = lines.split('Distance matrix')[-1].split('Symm')[0]
     if len(atom.split('\n')) > 8:
         atom = atom.split(' 6 ')[0] + ' 6 ' + atom.split(' 6 ')[1]
-        atom = atom.split('\n')[2:-1]
+        atom = atom.split('\n')[2:-2]
     length = len(atom)
     atoms  = []
     for at in atom:
