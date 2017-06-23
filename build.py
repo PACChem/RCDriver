@@ -74,7 +74,7 @@ class MOL:
             self.build_cart(smiles)
         elif '.log' in self.XYZ.lower():
             cartlines = io.read_file('../' + self.XYZ)
-            io.write_file(pa.gaussian_xyz(cartlines),smiles + '.xyz')
+            io.write_file(pa.gaussian_xyz_foresk(cartlines),smiles + '.xyz')
         elif self.XYZ.lower() == 'true':
             cartlines = io.read_file('../' + smiles + '.xyz')
             io.write_file(cartlines,smiles + '.xyz')

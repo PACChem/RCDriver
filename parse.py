@@ -76,7 +76,7 @@ def  gaussian_freqs(lines):
         freqs.extend(line.split())
     return freqs
 
-def gaussian_xyz(lines):
+def gaussian_xyz_foresk(lines):
     atom = lines.split('Distance matrix')[-1].split('Symm')[0]
     if len(atom.split('\n')) > 8:
         atom = atom.split(' 6 ')[0] + ' 6 ' + atom.split(' 6 ')[1]
@@ -97,7 +97,33 @@ def gaussian_xyz(lines):
         lines = lines.split('\n')[3:-2]
         for i,line in enumerate(lines):
             line = line.split()
-            xyz += atoms[i] + '  ' + line[3] + '  ' + line[4] + '  ' + line[5] + '\n'
+            xyz +=  atoms[i] + '  ' + line[3] + '  ' + line[4] + '  ' + line[5] + '\n'
+    return xyz 
+    
+def gaussian_xyz(lines):
+    atom = lines.split('Distance matrix')[-1].split('Symm')[0]
+    if len(atom.split('\n')) > 8:
+        atom = atom.split(' 6 ')[0] + ' 6 ' + atom.split(' 6 ')[1]
+        atom = atom.split('\n')[2:-2]
+    else:
+        atom = atom.split('\n')[2:-1]
+    length = len(atom)
+    atoms  = []
+    for at in atom:
+        atoms.extend(at.split()[1])
+    xyz = ''
+    if 'Eckart' in lines:
+        lines = lines.split('Gaussian Orientation')[-1].split('Eckart')[0]
+        lines = lines.split('\n')[5:-2]
+        for i,line in enumerate(lines):
+            line = line.split()
+            xyz += atoms[i] + '  ' + line[2] + '  ' + line[3] + '  ' + line[4] + '\n'
+    else:
+        lines = lines.split('Coordinates (Angstroms)')[-1].split(' Distance matrix')[0]
+        lines = lines.split('\n')[3:-2]
+        for i,line in enumerate(lines):
+            line = line.split()
+            xyz += ' ' + atoms[i] + '  ' + line[3] + '  ' + line[4] + '  ' + line[5] + '\n'
     return xyz 
     
      

@@ -237,8 +237,8 @@ def main(args):
         modes     = find_hinfreqs(proj,unproj,a)
         xmat      = remove_modes(xmat,modes)
         proj, b   = get_freqs(eskproj)
-        print anharm_freq(proj,xmat)
-        return mess_fr(anharm_freq(proj,xmat)) + mess_x(xmat) + extra
+        anfreq = anharm_freq(proj,xmat)
+        return anfreq, mess_fr(anfreq),  xmat, mess_x(xmat), extra
     ##########################
     else: 
         anharmlog = args.anharmlog
@@ -259,8 +259,8 @@ def main(args):
             modes     = find_hinfreqs(proj,unproj,a)
             xmat      = remove_modes(xmat,modes)
             proj, b   = get_freqs(eskproj)
-            print anharm_freq(proj,xmat)
-            return mess_fr(anharm_freq(proj,xmat)) + mess_x(xmat) + extra
+            anfreq = anharm_freq(proj,xmat)
+            return anfreq, mess_fr(anfreq), xmat, mess_x(xmat), extra
     return 
 
 if __name__ == '__main__':
