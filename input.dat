@@ -48,3 +48,11 @@ HL             :               :
 Irc            :               :
 ------------------------------------------------
 
+=============
+MESS options
+=============
+Perform all thermochemistry? (default true): true
+Anharmonic (0 for level0 theory, 1 for level1 theory, false for off): false
+Overwrite anharmonic: false
+
+

@@ -219,7 +219,7 @@ def build_molpro(meth,freqcalc):
     nondft = ['hf', 'ccsd', 'cisd']
     dft = True
     for key in nondft:
-        if key in method:
+        if key in method.lower():
             dft = False
     molstr  = 'nosym\nEnd1\n\n'
     molstr += '!closed shell input\n\nbasis=' + basis +'\n'
@@ -227,11 +227,12 @@ def build_molpro(meth,freqcalc):
         molstr += 'dft=['+method+']\n'
         molstr += 'hf\ndft'
     else:
-        molstr += 'hf\n' + method 
+        molstr += 'hf\n' + method.lower()
     molstr += '\noptg\n'
     if freqcalc == 'on':
         molstr += 'frequencies,symm=auto,numerical\n'
     molstr += 'ENERGY=energy\n\n'
+    molstr += 'CBSen=energy\n\n'
     molstr += '! these lines must be always included in molpro input\n'
     molstr += '! CBSen should be defined as desired\n'
     molstr += '! the molden line should be left as it is\n\nput,molden,molpro.molden\n\n---\n\n'
@@ -241,13 +242,14 @@ def build_molpro(meth,freqcalc):
         molstr += 'dft=['+method+']\n'
         molstr += 'uhf\ndft'
     elif 'ccsd' in method:
-        molstr += 'rhf\n' + 'U' + method 
+        molstr += 'rhf\n' + 'u' + method.lower()
     else:
-        molstr += 'uhf\n' + method 
+        molstr += 'uhf\n' + method.lower()
     molstr += '\noptg\n'
     if freqcalc == 'on':
         molstr += 'frequencies,symm=auto,numerical\n'
     molstr += 'ENERGY=energy\n\n'
+    molstr += 'CBSen=energy\n\n'
     molstr += '! these lines must be always included in molpro input\n'
     molstr += '! CBSen should be defined as desired\n'
     molstr += '! the molden line should be left as it is\n\nput,molden,molpro.molden\n\n---\n\n'
