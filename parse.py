@@ -2,6 +2,16 @@
 
 import re
 
+
+
+def get_prog(lines):
+   
+   if 'Gaussian' in lines:
+       return 'g09'
+   elif 'molpro' in lines:
+       return 'molpro'
+   return
+
 ################################################
 ############     Gaussian PARSER    ############
 ################################################
@@ -192,7 +202,7 @@ def molpro_method(lines):
     method  = re.findall(method,lines)
     return method[-1]
 
-def molpro_basis(lines):
+def molpro_basisset(lines):
 
     basis = 'basis=(\S*)' 
     basis  = re.findall(basis,lines)
