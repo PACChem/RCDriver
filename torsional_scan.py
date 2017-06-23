@@ -175,7 +175,8 @@ class ES:
 
 class MESS:
     def __init__(self):
-        ladi = 'dida'
+        self.anfreqs = []
+        self.anxmat  = []
  
     def build(self,reacs,prods,anharm,anovrwrt,node,meths):
         """
@@ -228,8 +229,10 @@ class MESS:
                     if str(anharm) in meth[0]:
                         anlevel = meth[2]
                 os.chdir('..')                          
-                fr = get_anharm('reac', str(n+1), natom,node,anlevel,anovrwrt,reac)  #(xmat with projected out scanned torsional modes)
-                
+                anfr,fr1, anx,fr2,fr3 = get_anharm('reac', str(n+1), natom,node,anlevel,anovrwrt,reac)  #(xmat with projected out scanned torsional modes)
+                fr =  fr1 +  fr2 + fr3
+                self.anfreqs.append(anfr)
+                self.anxmat.append(anx)
                 os.chdir('me_files')
             os.chdir('..')                          
             print('completed')
@@ -266,7 +269,10 @@ class MESS:
                     if str(anharm) in meth[0]:
                         anlevel = meth[2]
                 os.chdir('..')                           
-                fr = get_anharm('prod', str(n+1), natom,node,anlevel,anovrwrt,prod)  #(xmat with projected out scanned torsional modes)
+                anfr,fr1, anx,fr2, fr3 = get_anharm('prod', str(n+1), natom,node,anlevel,anovrwrt,prod)  #(xmat with projected out scanned torsional modes)
+                fr = fr1 +  fr2 + fr3
+                self.anfreqs.append(anfr)
+                self.anxmat.append(anx)
                 os.chdir('me_files')
             os.chdir('..')                        
             print('completed')
@@ -287,10 +293,11 @@ class MESS:
         import re
             
         speciess,speclist = self.build(reacs,prods,anharm,anovrwrt,node,meths)
-
+        self.dH0   = []
+        self.dH298 = [] 
         for i,species in enumerate(speciess):
             deltaH = hf.main(ob.get_formula(species),'geoms/'+speclist[i] + '_l1.log')
-
+            self.dH0.append(deltaH)
             os.system('soft add +intel-16.0.0; soft add +gcc-5.3')
             print('Task: Running mess')
             tc.run_pf('/home/ygeorgi/build/crossrate/partition_function', species + '.pf')
@@ -304,6 +311,7 @@ class MESS:
             lines = io.read_file('thermp.out')
             deltaH298 = ' h298 final\s*([\d,\-,\.]*)'
             deltaH298 = re.findall(deltaH298,lines)[-1]
+            self.dH298.append(deltaH298)
             print ('Running pac99.\n')
             shutil.copyfile('/home/elliott/Packages/therm/new.groups','./new.groups')
             shutil.copyfile(stoich + '.i97',species + '.i97')
@@ -316,7 +324,7 @@ class MESS:
 
             
             print('completed')
-        return deltaH, deltaH298
+        return 
 
     def extract_mess(self,filename):
         """
@@ -542,31 +550,65 @@ if __name__ == "__main__":
     import parse 
     if args.alltherm.lower() == 'true':
         mess = MESS()
-        deltaH, deltaH298 = mess.run(args.reacs,args.prods,args.anharm,args.anovrwrt,args.node,args.meths)
-    for i,reac in enumerate(args.reacs, start=1):
-        lines = io.read_file('geoms/reac' + str(i) + '_l1.log')
-        print('=====================\n          '+reac+'\n=====================')
-        print 'Method: ' +      parse.gaussian_method(  lines)
-        print 'Basis:  ' +      parse.gaussian_basisset(lines)
-        print 'Energy: ' +  str(parse.gaussian_energy(  lines))
-        print 'Zmatrix:' +      parse.gaussian_zmat(lines)
-        print 'Heat of formation(  0K): ' + str(deltaH) + ' kcal /' + str(deltaH/.00038088/ 627.503) + ' kJ'
-        print 'Heat of formation(298K): ' + deltaH298   + ' kcal /' + str(float(deltaH298)/.00038088/ 627.503) + ' kJ'
-    for i,prod in enumerate(args.prods, start=1):
-        lines = io.read_file('geoms/prod' + str(i) + '_l1.log')
-        print('=====================\n          '+prod+'\n=====================')
-        print 'Method: ' +      parse.gaussian_method(  lines)
-        print 'Basis:  ' +      parse.gaussian_basisset(lines)
-        print 'Energy: ' +  str(parse.gaussian_energy(  lines))
-        print 'Zmatrix:' +      parse.gaussian_zmat(lines)
-        print 'Heat of formation(  0K): ' + str(deltaH) + ' kcal /' + str(deltaH/.00038088/ 627.503) + ' kJ'
-        print 'Heat of formation(298K): ' + deltaH298   + ' kcal /' + str(float(deltaH298)/.00038088/ 627.503) + ' kJ'
-    if args.nTS > 0:
-        lines = io.read_file('geoms/tsgta_l1.log')
-        print('=====================\n        TS\n=====================')
-        print 'Method: ' +      parse.gaussian_method(  lines)
-        print 'Basis:  ' +      parse.gaussian_basisset(lines)
-        print 'Energy: ' +  str(parse.gaussian_energy(  lines))
-        print 'Zmatrix:' +      parse.gaussian_zmat(lines)
-        print 'Heat of formation(  0K): ' + str(deltaH) + ' kcal /' + str(deltaH/.00038088/ 627.503) + ' kJ'
-        print 'Heat of formation(298K): ' + deltaH298   + ' kcal /' + str(float(deltaH298)/.00038088/ 627.503) + ' kJ'
+        mess.run(args.reacs,args.prods,args.anharm,args.anovrwrt,args.node,args.meths)
+        anfreqs = mess.anfreqs
+        anxmat  = mess.anxmat
+        deltaH  = mess.dH0
+        deltaH298 = mess.dH298
+        printstr = '\n\n!!!!!!!!!!!!!!!!OUTPUT!!!!!!!!!!!!!!!\n\n'
+        for i,reac in enumerate(args.reacs, start=1):
+            lines = io.read_file('geoms/reac' + str(i) + '_l1.log')
+            printstr += '=====================\n          '+reac+'\n=====================\n'
+            printstr += 'Method: ' +      parse.gaussian_method(  lines) + '\n' 
+            printstr += 'Basis:  ' +      parse.gaussian_basisset(lines) + '\n'
+            printstr += 'Energy: ' +  str(parse.gaussian_energy(  lines))+ '\n'
+            printstr += 'Zmatrix:' +      parse.gaussian_zmat(lines)     + '\n'
+            printstr += 'Cartesian coordinates (angstrom):\n' + parse.gaussian_xyz(lines) 
+            printstr += '\nUnprojected Frequencies (cm-1):\t' 
+            printstr += ', '.join(freq for freq in parse.gaussian_freqs(lines)[::-1])
+
+            if args.anharm != 'false':
+                printstr += '\nAnharmonic Frequencies  (cm-1):\t' 
+                printstr += ', '.join('%4.4f' % freq for freq in anfreqs[i-1])
+                printstr += '\nX matrix:\n\t' #+   anxmat[i-1] 
+                printstr +=('\n\t'.join(['\t'.join(['%3.3f'%item for item in row]) 
+                            for row in anxmat[i-1]]))
+
+            printstr += '\nHeat of formation(  0K): ' + str(deltaH[i-1]) + ' kcal /' + str(deltaH[i-1]/.00038088/ 627.503) + ' kJ\n'
+            printstr += 'Heat of formation(298K): ' + deltaH298[i-1]   + ' kcal /' + str(float(deltaH298[i-1])/.00038088/ 627.503) + ' kJ\n'
+
+        for j,prod in enumerate(args.prods, start=1):
+            lines = io.read_file('geoms/prod' + str(j) + '_l1.log')
+            printstr += '=====================\n          '+prod+'\n=====================\n'
+            printstr +=  'Method: ' +      parse.gaussian_method(  lines)  + '\n'
+            printstr +=  'Basis:  ' +      parse.gaussian_basisset(lines)  + '\n'
+            printstr +=  'Energy: ' +  str(parse.gaussian_energy(  lines)) + '\n'
+            printstr +=  'Zmatrix:' +      parse.gaussian_zmat(lines)      + '\n'
+            printstr += 'Cartesian coordinates (angstrom):\n' + parse.gaussian_xyz(lines) 
+            printstr += '\nUnprojected Frequencies (cm-1):\t' 
+            printstr += ', '.join(freq for freq in parse.gaussian_freqs(lines)[::-1])
+
+            if args.anharm != 'false':
+                printstr += '\nAnharmonic Frequencies  (cm^-1):\t' 
+                printstr += ', '.join('%4.4f' % freq for freq in anfreqs[i+j-1])
+                printstr += 'X matrix:\n\t' #+   anxmat[i+j-2] 
+                printstr +=('\n\t'.join(['\t'.join(['%3.3f'%item  for item in row]) 
+                            for row in anxmat[i+j-1]]))
+
+            printstr +=  '\nHeat of formation(  0K): ' + str(deltaH[i+j-1]) + ' kcal /' + str(deltaH[i+j-1]/.00038088/ 627.503) + ' kJ\n'
+            printstr +=  'Heat of formation(298K): ' + deltaH298[i+j-1]   + ' kcal /' + str(float(deltaH298[i+j-1])/.00038088/ 627.503) + ' kJ\n'
+
+        if args.nTS > 0:
+            lines = io.read_file('geoms/tsgta_l1.log')
+            printstr +=  '=====================\n        TS\n=====================\n'
+            printstr +=  'Method: ' +      parse.gaussian_method(  lines)   + '\n'
+            printstr +=  'Basis:  ' +      parse.gaussian_basisset(lines)   + '\n'
+            printstr +=  'Energy: ' +  str(parse.gaussian_energy(  lines))  + '\n'
+            printstr +=  'Zmatrix:' +      parse.gaussian_zmat(lines)       + '\n'
+            printstr += 'Cartesian coordinates (angstrom):\n' + parse.gaussian_xyz(lines) 
+            printstr += 'Unprojected Frequencies (cm-1):\t' 
+            printstr += ', '.join(freq for freq in parse.gaussian_freqs(lines)[::-1])
+            printstr +=  '\nHeat of formation(  0K): ' + str(deltaH) + ' kcal /' + str(deltaH/.00038088/ 627.503) + ' kJ\n'
+            printstr +=  'Heat of formation(298K): ' + deltaH298   + ' kcal /' + str(float(deltaH298)/.00038088/ 627.503) + ' kJ\n'
+
+        print printstr
