@@ -6,7 +6,7 @@ import os
 import sys
 sys.path.insert(0, '/home/elliott/Packages/QTC/')
 import iotools as io
-
+import parse as pa
 def get_atomlist(mol):
     """
     Makes a list of all atoms in a molecule
@@ -166,37 +166,39 @@ def getname_fromdirname():
     cwd = os.getcwd()
     return cwd.split('/')[-1]
 
+def getprog_fromlogfile(lines):
+     
+    return pa.get_prog(lines)
+
 def gettheory_fromlogfile(logfile):
+  
     lines = io.read_file(logfile)
-    theor = 'E\((\w+)'
-    theor = re.findall(theor,lines)
-    if theor[-1] == 'CORR':
-       if 'CCSD(T)' in lines:
-           return 'CCSD(T)'
-       elif 'CCSD' in lines:
-           return 'CCSD'
-    return theor[-1]
+    prog  = getprog_fromlogfile(lines)
+    if prog == 'g09':
+       return pa.gaussian_method(lines)
+    elif prog == 'molpro':
+       return pa.molpro_method(lines)
+    return 
 
 def getbasisset_fromlogfile(logfile):
     lines = io.read_file(logfile)
-    theor = 'Standard basis:\s*(\S*)'
-    theor = re.findall(theor,lines)
-    return theor[-1]
+    prog  = getprog_fromlogfile(lines)
+    if prog == 'g09':
+       return pa.gaussian_basisset(lines)
+    elif prog == 'molpro':
+       return pa.molpro_basisset(lines)
+    return
 
 def getenergy_fromlogfile(logfile,theory):
-    dft = ['b3lyp','m062x','rb3lyp','rm062x']
-    if 'CCSD' in theory:
-        theory = theory.replace('(','\(').replace(')','\)')
-        lines = io.read_file(logfile)
-        energ = theory + '=([\w,\.,\s,-]*)'
-        energ = re.findall(energ,lines)
-        return float(energ[-1].replace('\n','').replace(' ',''))
-        #return float(energ[-1].split('\\')[0].lstrip('='))
-    elif theory.lower().split('/')[0]  and io.check_file(logfile):
-        lines = io.read_file(logfile)
-        energ = '(\S+)\s*A\.U\.'
-        energ = re.findall(energ,lines)
-        return float(energ[-1])
+
+    lines = io.read_file(logfile)
+    prog  = getprog_fromlogfile(lines)
+    if prog == 'g09':
+       return pa.gaussian_energy(lines)
+    elif prog == 'molpro':
+       return pa.molpro_energy(lines)
+    elif prog == None:
+       return pa.molpro_energy(lines)
     print 'no energy found for this molecule, please use -e to manually set it'
     return
 
@@ -238,28 +240,65 @@ def build_gauss(dic, theory, basisset):
     bases = ['cc-pvqz','cc-pvtz','cc-pvdz','6-311+g(d,p)','6-31+g(d,p)']
     zmat  = 'none'
     
-    if theory.lower().lstrip('r') in dic:
+    if theory.lower().lstrip('r') in dic['g09']:
         for j in range(len(bases)):
-            if bases[j] in dic[theory.lower().lstrip('r')]:
-                if zmat in dic[theory.lower().lstrip('r')][bases[j]]:
-                    zmat = dic[theory.lower().lstrip('r')][bases[j]]['zmat']
+            if bases[j] in dic['g09'][theory.lower().lstrip('r')]:
+                if zmat in dic['g09'][theory.lower().lstrip('r')][bases[j]]:
+                    zmat = dic['g09'][theory.lower().lstrip('r')][bases[j]]['zmat']
     if zmat == 'none':
         for i in range(len(meths)):
-            if meths[i] in dic:
+            if meths[i] in dic['g09']:
                 for j in range(len(bases)):
-                    if bases[j] in dic[meths[i]]:
-                        if 'zmat' in dic[meths[i]][bases[j]]:
-                            zmat = dic[meths[i]][bases[j]]['zmat']
+                    if bases[j]  in dic['g09'][meths[i]]:
+                        if 'zmat'in dic['g09'][meths[i]][bases[j]]:
+                            zmat =  dic['g09'][meths[i]][bases[j]]['zmat']
     if zmat == 'none':
         import obtools as ob
         mol = ob.get_mol(dic['_id'])
         zmat = ob.get_zmat(mol)
-    #gauss += dic['charge'] + ' ' + dic['mult'] + '\n'
+        gauss += str(dic['charge']) + ' ' + str(dic['mult']) + '\n'
     gauss += zmat.lstrip('\n')
 
     io.write_file(gauss, dic['stoich'] + '.inp')
 
     return
+
+def build_molpro(dic, theory, basisset):
+
+    molp  = 'memory,         200 ,m\nnosym\ngeometry={angstrom\n'
+    meths = ['ccsdt','ccsd(t)','ccsd','m062x','b3lyp']
+    bases = ['cc-pvqz','cc-pvtz','cc-pvdz','6-311+g(d,p)','6-31+g(d,p)']
+    zmat  = 'none'
+    
+    if theory.lower().lstrip('r') in dic['g09']:
+        for j in range(len(bases)):
+            if bases[j] in dic['g09'][theory.lower().lstrip('r')]:
+                if zmat in dic['g09'][theory.lower().lstrip('r')][bases[j]]:
+                    zmat = dic['g09'][theory.lower().lstrip('r')][bases[j]]['zmat']
+    if zmat == 'none':
+        for i in range(len(meths)):
+            if meths[i] in dic['g09']:
+                for j in range(len(bases)):
+                    if bases[j]  in dic['g09'][meths[i]]:
+                        if 'zmat'in dic['g09'][meths[i]][bases[j]]:
+                            zmat =  dic['g09'][meths[i]][bases[j]]['zmat']
+    zmat1 = '\n'.join(zmat.split('Variables:')[0].split('\n')[2:] )
+    zmat2 = '}\n'
+    for line in zmat.split('Variables:')[1].split('\n')[1:-1]:
+        zmat2 += line.split()[0] + '  =  ' + line.split()[1] + '\n'
+    molp += zmat1 + zmat2
+    spin  = 1/2.*(dic['mult']-1) * 2
+    molp += '\nSET,SPIN=     ' + str(spin) + '\n\n'
+    if spin == 0:
+        molp += '!closed shell input\nbasis=' + basisset + '\nhf\n' + theory.lower() + '\noptg\nENERGY=energy'
+    else:
+        if 'ccsd' in theory.lower() or 'cisd' in theory.lower() or 'hf' in theory.lower() or 'mp' in theory.lower():
+	    molp += '!open shell input\nbasis=' + basisset + '\nhf\nu' + theory.lower() + '\noptg\nENERGY=energy'
+        else:
+            molp += '!open shell input\nbasis=' + basisset + '\nuhf\n' + theory.lower() + '\noptg\nENERGY=energy'
+    io.write_file(molp, dic['stoich'] + '.inp')
+ 
+    return 
 
 def run_gauss(filename):
 
@@ -267,16 +306,22 @@ def run_gauss(filename):
     
     return
 
-def E_dic(dic,energORs,theory,basisset):
+def run_molpro(filename):
+
+    os.system('/home/elliott/bin/molprop ' + filename)
+    
+    return
+
+def E_dic(dic,energORs,theory,basisset,prog):
     """
     Checks a dictionary for energy at a specified level of theory and basisset and computes it if it isn't there
     """
- 
-    if theory.lower().lstrip('r') in dic:
-        if basisset.lower() in dic[theory.lower().lstrip('r')]:
-            return dic[theory.lower().lstrip('r')][basisset.lower()][energORs]
+    if prog.lower() in dic: 
+        if theory.lower().lstrip('r') in dic[prog.lower()]:
+            if basisset.lower() in dic[prog.lower()][theory.lower().lstrip('r')]:
+                return dic[prog.lower()][theory.lower().lstrip('r')][basisset.lower()][energORs]
 
-    if energORs == 'energy':
+    if energORs == 'energy' and prog == 'g09':
         print 'Running G09 on ' + dic['stoich'] + ' at ' + theory.lstrip('R').lstrip('U') + '/' + basisset
         build_gauss(dic, theory, basisset)
         run_gauss(dic['stoich']+'.inp')
@@ -284,13 +329,21 @@ def E_dic(dic,energORs,theory,basisset):
         print 'Energy found to be: ' + str(E)
         return E
 
-    else:
+    elif energORs == 'energy' and prog == 'molpro':
+        print 'Running Molpro on ' + dic['stoich'] + ' at ' + theory.lstrip('R').lstrip('U') + '/' + basisset
+        build_molpro(dic, theory, basisset)
+        run_molpro(dic['stoich']+'.inp')
+        E = getenergy_fromlogfile(dic['stoich']+'.log',theory)
+        print 'Energy found to be: ' + str(E)
+        return E
+
+    elif energORs != 'energy':
         return .001
     #print 'no energy for ' +  dic['stoich'] + ' at '+ theory + '/' + basisset 
     print 'No electronic energy found -- ommitting its contribution'
     return 0
 
-def comp_energy(mol,basis,coefflist,E,theory,basisset):
+def comp_energy(mol,basis,coefflist,E,theory,basisset,prog):
     """
     Uses the coefficients [a,b,c...] obtained from C = M^-1 S to find 
     delH(CxHyOz) = adelH(R1) + bdelH(R2) + cdelH(R3) + Eo(CxHyOz) - aEo(R1) - bEo(R2) -cEo(R3)
@@ -313,7 +366,7 @@ def comp_energy(mol,basis,coefflist,E,theory,basisset):
         for dic in db:
             if dic['stoich'] == mol:
                 bas = dic
-        E = E_dic(bas, 'energy',theory,basisset)
+        E = E_dic(bas, 'energy',theory,basisset,prog)
     lE        = E
     var       = 0
     for i,bas in enumerate(basis):
@@ -325,9 +378,9 @@ def comp_energy(mol,basis,coefflist,E,theory,basisset):
 
         var += (coefflist[i] * H_dic(bas,'HeatForm','sigma') * 0.00038088   )**2
         
-        E    =  E_dic(bas, 'energy',theory,basisset)
+        E    =  E_dic(bas, 'energy',theory,basisset,prog)
         lE  -=  coefflist[i] * E
-        var += (coefflist[i] * E * E_dic(bas,'sigma',theory,basisset) )**2
+        #var += (coefflist[i] * E * E_dic(bas,'sigma',theory,basisset,prog) )**2
 
     sigma = np.sqrt(var)
     return lE, sigma
@@ -346,10 +399,12 @@ def check(clist, basis,stoich,atomlist):
             break
     return statement
 
-def main(mol,logfile='geoms/reac1_l1.log', E=9999.9, basis='auto', theory='auto/',db='tempdb'):
+def main(mol,logfile='geoms/reac1_l1.log', E=9999.9, basis='auto', theory='auto/',db='tempdb',prog = 'auto'):
     
     basis = basis.split()
     #AUTO SET NONUSERDEFINED PARAMETRS##
+    if is_auto(prog):
+        prog = pa.get_prog(io.read_file(logfile))
     if is_auto(mol):
         mol = getname_fromdirname() 
     if is_auto(theory) and io.check_file(logfile):
@@ -419,7 +474,7 @@ def main(mol,logfile='geoms/reac1_l1.log', E=9999.9, basis='auto', theory='auto/
     ##################
 
     #COMPUTE AND PRINT delH###
-    E =  comp_energy(mol,basis,clist,E,theory,basisset)
+    E =  comp_energy(mol,basis,clist,E,theory,basisset,prog)
     lines =  '\n        delHf(0K)'
     lines += '\nA.U. \t'
     for e in E[:1]:  lines += str(e) + '\t'

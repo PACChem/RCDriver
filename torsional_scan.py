@@ -213,7 +213,7 @@ class MESS:
             if 'Species' in ge:
                 ge = " Species " + reac.strip() +  ge.split("Species")[1]
             elif 'Fragment' in ge:
-                ge = " Fragment " + reac.strip() +  ge.split("Fragment")[1]
+                ge = " Species " + reac.strip() +  ge.split("Fragment")[1]
             ge,ge1 = ge.split('Core')
             hr = self.extract_mess('reac' + str(n+1) + '_hr.me')                         #Copy EStokTP hr data
             if not 'Core' in hr:
@@ -343,7 +343,7 @@ class ARGS:
         self.TS       = ''      #list of SMILE strings of transition states
         self.reactype = ''      #type of reaction (default well)
         self.nTS      = '0'     #Number of transition states (default 0)
-        self.XYZ      = 'True'  #Optimized XYZ provided
+        self.XYZ      = 'False'  #Optimized XYZ provided
         self.xyzstart = 'start'  #Optimized XYZ provided
         self.node     = 'debug' #Default node to run on in is debug (won't run)
         self.coresh   = '10'    #Default high number of cores is 10
@@ -524,8 +524,9 @@ def get_param(param,keyword,inputlines):
      return param
  
 if __name__ == "__main__":
-   
-    print("""\t\t   TORSSCAN
+  
+    import random 
+    print(random.choice(["""\t\t   TORSSCAN
                     _,--._
                   ,'      `.
           |\     /          \     /|
@@ -538,8 +539,22 @@ if __name__ == "__main__":
       \`. `.__,' /   /  \   \ `.__,' ,'/
        \o\     ,'  ,'    `.  `.     /o/
         \o`---'  ,'        `.  `---'o/
-         `.____,'           `.____,'  """)
+         `.____,'           `.____,'  """,
 
+     """    
+            ,,,         ,,,
+          ;"   ^;     ;'   ",
+         ;    s$$$$$$$s      ;
+          ,  ss$$$$$$$$$$s  ,'
+          ;s$$$$$$$$$$$$$$$
+          $$$$$$$$$$$$$$$$$$
+         $$$$P""Y$$$Y""W$$$$$
+         $$$$  0"$$$"0  $$$$$
+         $$$$  .$$$$$.  $$$$
+          $$$$$$$$$$$$$$$$$
+     TORS  "Y$$$"'*'"$$$Y"  SCAN    
+              "$$b.d$$"        
+   """]))
 
     args = ARGS('input.dat')
     es   = ES(args)             
@@ -559,13 +574,13 @@ if __name__ == "__main__":
         for i,reac in enumerate(args.reacs, start=1):
             lines = io.read_file('geoms/reac' + str(i) + '_l1.log')
             printstr += '=====================\n          '+reac+'\n=====================\n'
-            printstr += 'Method: ' +      parse.gaussian_method(  lines) + '\n' 
-            printstr += 'Basis:  ' +      parse.gaussian_basisset(lines) + '\n'
-            printstr += 'Energy: ' +  str(parse.gaussian_energy(  lines))+ '\n'
-            printstr += 'Zmatrix:' +      parse.gaussian_zmat(lines)     + '\n'
-            printstr += 'Cartesian coordinates (angstrom):\n' + parse.gaussian_xyz(lines) 
+            printstr += 'Method: ' +      parse.method(  lines) + '\n' 
+            printstr += 'Basis:  ' +      parse.basisset(lines) + '\n'
+            printstr += 'Energy: ' +  str(parse.energy(  lines))+ '\n'
+            printstr += 'Zmatrix:' +      parse.zmat(lines)     + '\n'
+            printstr += 'Cartesian coordinates (angstrom):\n' + parse.xyz(lines) 
             printstr += '\nUnprojected Frequencies (cm-1):\t' 
-            printstr += ', '.join(freq for freq in parse.gaussian_freqs(lines)[::-1])
+            printstr += ', '.join(freq for freq in parse.freqs(lines)[::-1])
 
             if args.anharm != 'false':
                 printstr += '\nAnharmonic Frequencies  (cm-1):\t' 
@@ -580,13 +595,13 @@ if __name__ == "__main__":
         for j,prod in enumerate(args.prods, start=1):
             lines = io.read_file('geoms/prod' + str(j) + '_l1.log')
             printstr += '=====================\n          '+prod+'\n=====================\n'
-            printstr +=  'Method: ' +      parse.gaussian_method(  lines)  + '\n'
-            printstr +=  'Basis:  ' +      parse.gaussian_basisset(lines)  + '\n'
-            printstr +=  'Energy: ' +  str(parse.gaussian_energy(  lines)) + '\n'
-            printstr +=  'Zmatrix:' +      parse.gaussian_zmat(lines)      + '\n'
-            printstr += 'Cartesian coordinates (angstrom):\n' + parse.gaussian_xyz(lines) 
+            printstr +=  'Method: ' +      parse.method(  lines)  + '\n'
+            printstr +=  'Basis:  ' +      parse.basisset(lines)  + '\n'
+            printstr +=  'Energy: ' +  str(parse.energy(  lines)) + '\n'
+            printstr +=  'Zmatrix:' +      parse.zmat(lines)      + '\n'
+            printstr += 'Cartesian coordinates (angstrom):\n' + parse.xyz(lines) 
             printstr += '\nUnprojected Frequencies (cm-1):\t' 
-            printstr += ', '.join(freq for freq in parse.gaussian_freqs(lines)[::-1])
+            printstr += ', '.join(freq for freq in parse.freqs(lines)[::-1])
 
             if args.anharm != 'false':
                 printstr += '\nAnharmonic Frequencies  (cm^-1):\t' 
@@ -601,13 +616,13 @@ if __name__ == "__main__":
         if args.nTS > 0:
             lines = io.read_file('geoms/tsgta_l1.log')
             printstr +=  '=====================\n        TS\n=====================\n'
-            printstr +=  'Method: ' +      parse.gaussian_method(  lines)   + '\n'
-            printstr +=  'Basis:  ' +      parse.gaussian_basisset(lines)   + '\n'
-            printstr +=  'Energy: ' +  str(parse.gaussian_energy(  lines))  + '\n'
-            printstr +=  'Zmatrix:' +      parse.gaussian_zmat(lines)       + '\n'
-            printstr += 'Cartesian coordinates (angstrom):\n' + parse.gaussian_xyz(lines) 
+            printstr +=  'Method: ' +      parse.method(  lines)   + '\n'
+            printstr +=  'Basis:  ' +      parse.basisset(lines)   + '\n'
+            printstr +=  'Energy: ' +  str(parse.energy(  lines))  + '\n'
+            printstr +=  'Zmatrix:' +      parse.zmat(lines)       + '\n'
+            printstr += 'Cartesian coordinates (angstrom):\n' + parse.xyz(lines) 
             printstr += 'Unprojected Frequencies (cm-1):\t' 
-            printstr += ', '.join(freq for freq in parse.gaussian_freqs(lines)[::-1])
+            printstr += ', '.join(freq for freq in parse.freqs(lines)[::-1])
             printstr +=  '\nHeat of formation(  0K): ' + str(deltaH) + ' kcal /' + str(deltaH/.00038088/ 627.503) + ' kJ\n'
             printstr +=  'Heat of formation(298K): ' + deltaH298   + ' kcal /' + str(float(deltaH298)/.00038088/ 627.503) + ' kJ\n'
 
