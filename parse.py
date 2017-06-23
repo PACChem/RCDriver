@@ -32,7 +32,6 @@ def gaussian_method(lines):
            return 'CCSD(T)'
        elif 'CCSD' in lines:
            return 'CCSD'
-
     return method[-1]
 
 def gaussian_energy(lines,method=''):
@@ -145,7 +144,6 @@ def molpro_energy(lines,method=''):
     if method == '':
         method = molpro_method(lines)
     method = method.replace('(','\(').replace(')','\)')
-
     if 'OPTG' in lines:
         energ = 'E\(' + method +'\) \/ Hartree\s*[\d,\-,\.]*\s*([\d,\-,\.]*)'
         energ  = re.findall(energ,lines)
@@ -156,7 +154,12 @@ def molpro_energy(lines,method=''):
         energ  = method + ' total energy\s*([\d,\-,\.]+)'
         energ  = re.findall(energ,lines)
         if len(energ) == 0:
-            print 'energy not found'
+            energ  = '!\w*\-\s*[\U,\R]' + method + '\s*energy\s*([\d,\-,\.]+)'
+            energ  = re.findall(energ,lines)
+            if len(energ) == 0:
+                print 'energy not found'
+            else:
+                return float(energ[-1].replace('\n','').replace(' ',''))
         else:
             return float(energ[-1].replace('\n','').replace(' ',''))
 
@@ -200,6 +203,8 @@ def molpro_method(lines):
     
     method  = '1PROGRAM \* (\S*)'
     method  = re.findall(method,lines)
+    if 'CCSD(T)' in lines:
+        return 'CCSD(T)'
     return method[-1]
 
 def molpro_basisset(lines):
@@ -239,3 +244,48 @@ def EStokTP_freqs(lines):
     freqs  = np.sort(freqs)[::-1]
     return freqs.tolist()
 
+###########################
+#####  FOR GENERAL ########
+############################
+
+def method(lines):
+    prog = get_prog(lines)
+    if prog == 'g09':
+        return gaussian_method(lines)
+    if prog == 'molpro':
+        return molpro_method(lines)
+
+def basisset(lines):
+    prog = get_prog(lines)
+    if prog == 'g09':
+        return gaussian_basisset(lines)
+    if prog == 'molpro':
+        return molpro_basisset(lines)
+
+def energy(lines):
+    prog = get_prog(lines)
+    if prog == 'g09':
+        return gaussian_energy(lines)
+    if prog == 'molpro':
+        return molpro_energy(lines)
+
+def zmat(lines):
+    prog = get_prog(lines)
+    if prog == 'g09':
+        return gaussian_zmat(lines)
+    if prog == 'molpro':
+        return molpro_zmat(lines)
+
+def freqs(lines):
+    prog = get_prog(lines)
+    if prog == 'g09':
+        return gaussian_freqs(lines)
+    if prog == 'molpro':
+        return molpro_freqs(lines)
+
+def xyz(lines):
+    prog = get_prog(lines)
+    if prog == 'g09':
+        return gaussian_xyz(lines)
+    if prog == 'molpro':
+        return ''

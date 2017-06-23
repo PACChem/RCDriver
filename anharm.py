@@ -126,7 +126,7 @@ def gauss_anharm_inp(filename,anlevel):
     full = full.split('Z-matrix:')
     zmat = full[0].split('***************************')[2].replace('*','')
     zmat = zmat.split('Will')[0]
-    zmat = ' ' + zmat.lstrip() 
+    zmat = ' ' + zmat.lstrip()
     zmat += full[0].split('-------------------------------------------')[3].replace('--','')
     if not anlevel == 'ignore':
         zmat =  zmat.split('#')[0] + ' # ' + anlevel + ' opt = internal ' + zmat.split('#')[2]
@@ -234,6 +234,9 @@ def main(args):
         unproj, a = get_freqs(eskunproj)
         #xmat = gauss_xmat(anharmlog,natoms)
         xmat = qc.get_gaussian_xmatrix(io.read_file(anharmlog),len(unproj))
+        for i in range(len(xmat)):
+            for j in range(i):
+                xmat[j][i] = xmat[i][j]
         modes     = find_hinfreqs(proj,unproj,a)
         xmat      = remove_modes(xmat,modes)
         proj, b   = get_freqs(eskproj)
