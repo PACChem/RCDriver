@@ -10,7 +10,7 @@ nhind
  -->namehind,hindmin,hindmax,nhindsteps,period
 
 natom natomt ilin
-2 2 1
+2 2 0
 
 charge  spin  atomlabel
 0 3
