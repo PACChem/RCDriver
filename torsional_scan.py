@@ -1,11 +1,11 @@
-#!/usr/bin/python
+#!/home/keceli/anaconda2/bin/python
 
 import os
 import sys
 import build
 import numpy as np
 sys.path.insert(0, './bin')
-sys.path.insert(0, '/home/elliott/Packages/QTC/')
+sys.path.insert(0, '/home/elliott/Packages/QTC')
 import obtools as ob
 import iotools as io
 import tctools as tc
@@ -22,7 +22,6 @@ class ES:
         self.prods   =   args.prods    
         self.reactype=   args.reactype   
         self.nTS     =   args.nTS      
-        self.TS      =   args.TS      
         #for theory.dat
         self.meths   =   args.meths
         #for estoktp.at
@@ -83,7 +82,7 @@ class ES:
             for i, reac in enumerate(reacs,start=1):
                 print('Task: Building reac' + str(i) + '.dat...')
                 atoms, measure, angles = Reac.cart2zmat(reac)
-                zmatstring = Reac.build(i, angles, atoms,  measure)
+                zmatstring = Reac.build(i, reac, angles, atoms,  measure)
                 zmat = Reac.typemol +str(i) + '.dat'
                 io.write_file(zmatstring, zmat)
                 if self.nTS > 0:
@@ -101,7 +100,7 @@ class ES:
             for j, prod in enumerate(prods,start=1):
                 print('Task: Building prod' + str(j) + '.dat...')
                 atoms, measure, angles = Prod.cart2zmat(prod)
-                zmatstring = Prod.build(j, angles, atoms, measure)
+                zmatstring = Prod.build(j, prod, angles, atoms, measure)
                 zmat = Prod.typemol +str(j) + '.dat'
                 io.write_file(zmatstring, zmat)
                 stoich.append(Prod.stoich)
@@ -114,7 +113,7 @@ class ES:
                 TS.mult   = int(2.*TSspin + 1)
                 TS.symnum = ' 1'
                 if k == 0:
-                    zmatstring =TS.build(tstype[k], TSangles, TSatoms)
+                    zmatstring =TS.build(tstype[k], prod, TSangles, TSatoms)
                 else:
                     params = ('1', self.interval,self.nsteps,'False','start','MdTau' in self.jobs)
                     TS   = build.MOL(params,'ts') 
@@ -163,26 +162,40 @@ class ES:
         """
         print('Task: Submitting EStokTP job...')
         if self.node == '0':
-            os.system('soft add +g09; soft add +gcc-5.3; ~/Packages/EStokTP/exe/estoktp.x > estotkp.log &')
+            os.system('soft add +g09; soft add +gcc-5.3; /home/elliott/Packages/EStokTP/exe/estoktp.x >& estoktp.log')
         elif self.node == 'd' or self.node == 'debug':
             print('task skipped')
             return
         else:
-            os.system('~/bin/run_estoktp.com ' + self.node)
+            os.system('/home/elliott/bin/run_estoktp.com ' + self.node)
         print('completed')
         return
     
 
 class MESS:
-    def __init__(self):
-        self.anfreqs = []
-        self.anxmat  = []
- 
-    def build(self,reacs,prods,anharm,anovrwrt,node,meths):
+    def __init__(self,args):
+        self.anfreqs  = []
+        self.anxmat   = []
+        self.reacs    = args.reacs
+        self.prods    = args.prods    
+        self.anharm   = args.anharm
+        self.anovrwrt = args.anovrwrt
+        self.node     = args.node
+        self.meths    = args.meths
+        self.hfbasis  = args.hfbasis
+
+    def build(self):
         """
         Compiles together the mess data extracted from EStokTP computations
         to form an mess input file
         """
+        reacs    = self.reacs
+        prods    = self.prods    
+        anharm   = self.anharm
+        anovrwrt = self.anovrwrt
+        node     = self.node
+        meths    = self.meths
+
         species = []
         speclist = []
         if not os.path.exists('me_files'):
@@ -214,11 +227,14 @@ class MESS:
                 ge = " Species " + reac.strip() +  ge.split("Species")[1]
             elif 'Fragment' in ge:
                 ge = " Species " + reac.strip() +  ge.split("Fragment")[1]
-            ge,ge1 = ge.split('Core')
+            if 'Core' in ge:
+                ge,ge1 = ge.split('Core')
+            else:
+                ge1 = ''
             hr = self.extract_mess('reac' + str(n+1) + '_hr.me')                         #Copy EStokTP hr data
             if not 'Core' in hr:
                 ge = ge + 'Core' +ge1
-            else:
+            elif 'ge' != '':
                 hr = hr.split('Quantum')
                 hr = hr[0].rstrip() + '\n    Quantum'  + hr[1].lstrip()
             if anharm.lower() == 'false':
@@ -284,7 +300,7 @@ class MESS:
 
         return species, speclist
 
-    def run(self,reacs,prods,anharm,anovrwrt,node,meths):
+    def run(self):
         """
         Runs mess
         """
@@ -292,11 +308,23 @@ class MESS:
         import heatform as hf
         import re
             
-        speciess,speclist = self.build(reacs,prods,anharm,anovrwrt,node,meths)
+        reacs    = self.reacs
+        prods    = self.prods    
+        anharm   = self.anharm
+        anovrwrt = self.anovrwrt
+        node     = self.node
+        meths    = self.meths
+        hfbasis  = self.hfbasis
+        self.hfbases = []
+        speciess,speclist = self.build()
         self.dH0   = []
         self.dH298 = [] 
         for i,species in enumerate(speciess):
-            deltaH = hf.main(ob.get_formula(species),'geoms/'+speclist[i] + '_l1.log')
+            if io.check_file('geoms/'+speclist[i] + '_l1.log'):
+                deltaH, hfbasis = hf.main(species,'geoms/'+speclist[i] + '_l1.log', hfbasis)
+                self.hfbases.append(hfbasis)
+            else:
+                deltaH = 0.00
             self.dH0.append(deltaH)
             os.system('soft add +intel-16.0.0; soft add +gcc-5.3')
             print('Task: Running mess')
@@ -340,7 +368,6 @@ class ARGS:
         ####DEFAULT INPUTS#########################
         self.reacs    = 'CCC'   #list of SMILE strings of reactants
         self.prods    = ''      #list of SMILE strings of products
-        self.TS       = ''      #list of SMILE strings of transition states
         self.reactype = ''      #type of reaction (default well)
         self.nTS      = '0'     #Number of transition states (default 0)
         self.XYZ      = 'False'  #Optimized XYZ provided
@@ -356,6 +383,8 @@ class ARGS:
         self.anharm   = 'false' #Use and/or run anharmonic xmat computation
         self.anovrwrt = 'true' #Use and/or run anharmonic xmat computation
         self.alltherm = 'true' #Run all the thermochemistry scrips?
+        self.hfbasis  = 'auto' #Specify basis for heat of formation?
+        self.parseall = 'true' #Specify basis for heat of formation?
         ###########################################
 
         self.get_options(optionfile)      #Options from input file
@@ -407,7 +436,6 @@ class ARGS:
         self.nTS     = int(get_param(self.nTS , 'of transition', options))
         self.reacs   = get_param(self.reacs   , 'Reactant'     , options).replace(' ','').split(',')
         self.prods   = get_param(self.prods   , 'Product'      , options).replace(' ','').split(',')
-        self.TS      = get_param(self.TS      , 'Transition'   , options).replace(' ','').split(',')
         self.node    = get_param(self.node    , 'node'         , options)
         self.coresh  = get_param(self.coresh  , 'cores high'   , options)
         self.coresl  = get_param(self.coresl  , 'cores low'    , options)
@@ -420,7 +448,8 @@ class ARGS:
         self.anharm  = get_param(self.anharm  , 'Anharmonic'   , options)
         self.anovrwrt= get_param(self.anovrwrt, 'Overwrite an' , options)
         self.alltherm= get_param(self.alltherm, 'thermochemist', options)
-    
+        self.hfbasis = get_param(self.hfbasis , 'Basis for hea', options)
+        self.parseall= get_param(self.parseall, 'Parse all'    , options)
         self.rmg     = get_param(self.rmg     , 'RMG input'    , options)
         if self.rmg.lower() != 'false' and self.rmg != '':
             self.rmg_params(self.rmg)
@@ -452,7 +481,6 @@ class ARGS:
                 tss           = Reac.TS
                 self.reacs = []
                 self.prods = []
-                self.TS    = []
                 self.nTS   = Reac.nTS
                 for reac in reactants:
                     if not reac in dic:
@@ -523,8 +551,81 @@ def get_param(param,keyword,inputlines):
              return get_val(line,1)
      return param
  
-if __name__ == "__main__":
-  
+def parse(n, species, lines, anharm,anfreqs,anxmat,deltaH0,deltaH298,hfbasis,lines2):
+    printstr= '=====================\n          '+species+'\n=====================\n'
+    prog   =  pa.get_prog(lines) 
+    method =  pa.method(  lines).lower().lstrip('r')
+    basis  =  pa.basisset(lines).lower() 
+    energy = str(pa.energy(lines)[1]) 
+    zmat   =  pa.zmat(    lines)    
+    xyz    =  pa.xyz(     lines) 
+    rotcon = ', '.join(pa.rotconsts(lines))
+    freqs  = ', '.join(freq for freq in pa.freqs(lines)[::-1])
+    if lines2 != None:
+        pfreqs  = ', '.join(str(freq) for freq in pa.EStokTP_freqs(lines2))
+
+    printstr += 'Prog  : ' + prog   + '\n'
+    printstr += 'Method: ' + method + '\n' 
+    printstr += 'Basis:  ' + basis  + '\n'
+    printstr += 'Energy: ' + energy + ' A.U.\n'
+    printstr += 'Rotational Constants:' + rotcon  + ' GHz\n'
+    printstr += 'Zmatrix (Angstrom):' + zmat   + '\n'
+
+    io.db_store_opt_prop(zmat, species, 'zmat', None, prog, method, basis)
+    if xyz != None:
+        printstr += 'Cartesian coordinates (Angstrom):\n' + pa.xyz(lines) 
+        io.db_store_opt_prop(xyz, species, 'geo', None, prog, method, basis)
+        xyz = str(len(xyz.split('\n'))-1) + '\n\n' + xyz
+        io.db_store_opt_prop(xyz, species, 'xyz', None, prog, method, basis)
+    printstr += '\nUnprojected Frequencies (cm-1):\t'  + freqs
+    if lines2 != None:
+        printstr += '\nProjected Frequencies   (cm-1):\t'  + pfreqs
+        io.db_store_sp_prop(pfreqs,species,'phrm', None, prog, method, basis)
+    io.db_store_sp_prop(energy, species, 'ene', None, prog, method, basis)
+    io.db_store_sp_prop(freqs,  species, 'hrm', None, prog, method, basis)
+    io.db_store_sp_prop(rotcon, species,  'rc', None, prog, method, basis)
+    if anharm != 'false':
+        anpfr     = ', '.join('%4.4f' % freq for freq in anfreqs[i-1])
+        pxmat     =('\n\t'.join(['\t'.join(['%3.3f'%item for item in row]) 
+                    for row in anxmat[n-1]]))
+        io.db_store_sp_prop(anpfr, species, 'panhrm', None, prog, method, basis)
+        #io.db_store_sp_prop(pxmat, species, 'pxmat', None, prog, method, basis)   ##probably not at right level of theory
+        printstr += '\nAnharmonic Frequencies  (cm-1):\t' + anpfr
+        printstr += '\nX matrix:\n\t' + pxmat #+   anxmat[i-1]
+    
+    printstr += '\nHeat of formation(  0K): ' + str(deltaH[i-1]) + ' kcal /' + str(deltaH[n-1]/.00038088/ 627.503) + ' kJ\n'
+    hf298k    = str(deltaH298[n-1])
+    if not io.check_file(io.db_sp_path(prog, method, basis, None, species, prog, method, basis) + '/' + species + '.hf298k'):
+        io.db_store_sp_prop('Energy (kcal)\tBasis\n----------------------------------\n',species,'hf298k',None,prog,method,basis)
+    io.db_append_sp_prop(hf298k + '\t' + ', '.join(hfbasis) + '\n', species, 'hf298k',None, prog,method,basis)
+    printstr += 'Heat of formation(298K): ' + hf298k   + ' kcal /' + str(float(deltaH298[n-1])/.00038088/ 627.503) + ' kJ\n'
+    return printstr
+
+def ts_parse(n, lines):
+    tstype = ['TS', 'WELLR', 'WELLP']
+    printstr= '=====================\n          '+tstype[n]+'\n=====================\n'
+    prog   =  pa.get_prog(lines) 
+    method =  pa.method(  lines).lower().lstrip('r')
+    basis  =  pa.basisset(lines).lower() 
+    energy = str(pa.energy(lines)[1]) 
+    zmat   =  pa.zmat(    lines)    
+    xyz    =  pa.xyz(     lines) 
+    rotcon = ', '.join(pa.rotconsts(lines))
+    freqs  = ', '.join(freq for freq in pa.freqs(lines)[::-1])
+
+    printstr += 'Prog  : ' + prog   + '\n'
+    printstr += 'Method: ' + method + '\n' 
+    printstr += 'Basis:  ' + basis  + '\n'
+    printstr += 'Energy: ' + energy + ' A.U.\n'
+    printstr += 'Rotational Constants:' + rotcon  + ' GHz\n'
+    printstr += 'Zmatrix (Angstrom):' + zmat   + '\n'
+
+    if xyz != None:
+        printstr += 'Cartesian coordinates (Angstrom):\n' + pa.xyz(lines) 
+    printstr += '\nUnprojected Frequencies (cm-1):\t'  + freqs + '\n'
+    return printstr 
+
+def random_cute_animal():
     import random 
     print(random.choice(["""\t\t   TORSSCAN
                     _,--._
@@ -553,77 +654,73 @@ if __name__ == "__main__":
          $$$$  .$$$$$.  $$$$
           $$$$$$$$$$$$$$$$$
      TORS  "Y$$$"'*'"$$$Y"  SCAN    
-              "$$b.d$$"        
-   """]))
+              "$$b.d$$"        """,
+    """
+                         _.---~-~-~~-..
+     ..       __.    .-~               ~-.
+     ((\     /   `}.~      Try            `.
+      \\\\\   {     }     Sarah    /     \   \\
+  (\   \\\\~~       }      opts   |       }   \\
+   \`.-~-^~     }  ,-,.    and  |       )    \\
+   (___,    ) _}  (    :  scans |    / /      `.
+    `----._-~.     _\ \ |_       \   / /- _     -.
+           ~~----~~  \ \| ~~--~~~(  + /     ~-.   '--~.
+                     /  /         \  \         `~-..__ `~__
+                  __/  /          _\  )               `~~---'
+                .<___.'         .<___/
+    """]))
+    return
 
-    args = ARGS('input.dat')
+if __name__ == "__main__":
+  
+    import sys
+
+    random_cute_animal()
+
+    if len(sys.argv) > 1:
+        optionfile = sys.argv[1]
+    else:
+        optionfile = 'input.dat'
+
+    args = ARGS(optionfile)
     es   = ES(args)             
-    if es.restart < 7:
+    if args.restart < 7:
         es.build_subdirs()
         es.build_files()
         es.execute()
-    import parse 
+    import patools as pa
     if args.alltherm.lower() == 'true':
-        mess = MESS()
-        mess.run(args.reacs,args.prods,args.anharm,args.anovrwrt,args.node,args.meths)
+        mess = MESS(args)
+        mess.run()
         anfreqs = mess.anfreqs
         anxmat  = mess.anxmat
         deltaH  = mess.dH0
-        deltaH298 = mess.dH298
-        printstr = '\n\n!!!!!!!!!!!!!!!!OUTPUT!!!!!!!!!!!!!!!\n\n'
-        for i,reac in enumerate(args.reacs, start=1):
-            lines = io.read_file('geoms/reac' + str(i) + '_l1.log')
-            printstr += '=====================\n          '+reac+'\n=====================\n'
-            printstr += 'Method: ' +      parse.method(  lines) + '\n' 
-            printstr += 'Basis:  ' +      parse.basisset(lines) + '\n'
-            printstr += 'Energy: ' +  str(parse.energy(  lines))+ '\n'
-            printstr += 'Zmatrix:' +      parse.zmat(lines)     + '\n'
-            printstr += 'Cartesian coordinates (angstrom):\n' + parse.xyz(lines) 
-            printstr += '\nUnprojected Frequencies (cm-1):\t' 
-            printstr += ', '.join(freq for freq in parse.freqs(lines)[::-1])
-
-            if args.anharm != 'false':
-                printstr += '\nAnharmonic Frequencies  (cm-1):\t' 
-                printstr += ', '.join('%4.4f' % freq for freq in anfreqs[i-1])
-                printstr += '\nX matrix:\n\t' #+   anxmat[i-1] 
-                printstr +=('\n\t'.join(['\t'.join(['%3.3f'%item for item in row]) 
-                            for row in anxmat[i-1]]))
-
-            printstr += '\nHeat of formation(  0K): ' + str(deltaH[i-1]) + ' kcal /' + str(deltaH[i-1]/.00038088/ 627.503) + ' kJ\n'
-            printstr += 'Heat of formation(298K): ' + deltaH298[i-1]   + ' kcal /' + str(float(deltaH298[i-1])/.00038088/ 627.503) + ' kJ\n'
-
-        for j,prod in enumerate(args.prods, start=1):
-            lines = io.read_file('geoms/prod' + str(j) + '_l1.log')
-            printstr += '=====================\n          '+prod+'\n=====================\n'
-            printstr +=  'Method: ' +      parse.method(  lines)  + '\n'
-            printstr +=  'Basis:  ' +      parse.basisset(lines)  + '\n'
-            printstr +=  'Energy: ' +  str(parse.energy(  lines)) + '\n'
-            printstr +=  'Zmatrix:' +      parse.zmat(lines)      + '\n'
-            printstr += 'Cartesian coordinates (angstrom):\n' + parse.xyz(lines) 
-            printstr += '\nUnprojected Frequencies (cm-1):\t' 
-            printstr += ', '.join(freq for freq in parse.freqs(lines)[::-1])
-
-            if args.anharm != 'false':
-                printstr += '\nAnharmonic Frequencies  (cm^-1):\t' 
-                printstr += ', '.join('%4.4f' % freq for freq in anfreqs[i+j-1])
-                printstr += 'X matrix:\n\t' #+   anxmat[i+j-2] 
-                printstr +=('\n\t'.join(['\t'.join(['%3.3f'%item  for item in row]) 
-                            for row in anxmat[i+j-1]]))
-
-            printstr +=  '\nHeat of formation(  0K): ' + str(deltaH[i+j-1]) + ' kcal /' + str(deltaH[i+j-1]/.00038088/ 627.503) + ' kJ\n'
-            printstr +=  'Heat of formation(298K): ' + deltaH298[i+j-1]   + ' kcal /' + str(float(deltaH298[i+j-1])/.00038088/ 627.503) + ' kJ\n'
-
-        if args.nTS > 0:
-            lines = io.read_file('geoms/tsgta_l1.log')
-            printstr +=  '=====================\n        TS\n=====================\n'
-            printstr +=  'Method: ' +      parse.method(  lines)   + '\n'
-            printstr +=  'Basis:  ' +      parse.basisset(lines)   + '\n'
-            printstr +=  'Energy: ' +  str(parse.energy(  lines))  + '\n'
-            printstr +=  'Zmatrix:' +      parse.zmat(lines)       + '\n'
-            printstr += 'Cartesian coordinates (angstrom):\n' + parse.xyz(lines) 
-            printstr += 'Unprojected Frequencies (cm-1):\t' 
-            printstr += ', '.join(freq for freq in parse.freqs(lines)[::-1])
-            printstr +=  '\nHeat of formation(  0K): ' + str(deltaH) + ' kcal /' + str(deltaH/.00038088/ 627.503) + ' kJ\n'
-            printstr +=  'Heat of formation(298K): ' + deltaH298   + ' kcal /' + str(float(deltaH298)/.00038088/ 627.503) + ' kJ\n'
-
-        print printstr
+        delH298 = mess.dH298
+        if args.parseall.lower() == 'true':
+            printstr  = '\n\n ______________________'
+            printstr += '\n||                    ||'
+            printstr += '\n||       OUTPUT       ||'
+            printstr += '\n||____________________||\n\n'
+            for i,reac in enumerate(args.reacs, start=1):
+                lines   = io.read_file('geoms/reac' + str(i) + '_l1.log')
+                lines2  = None
+                if io.check_file('me_files/reac' +  str(i) + '_fr.me'):
+                    lines2  = io.read_file('me_files/reac' +  str(i) + '_fr.me')
+                printstr += parse(i, reac, lines, args.anharm,anfreqs,anxmat,deltaH,delH298,mess.hfbases[i-1],lines2)
+            for j,prod in enumerate(args.prods, start=1):
+                lines = io.read_file('geoms/prod' + str(j) + '_l1.log')
+                lines2 = None
+                if io.check_file('me_files/reac' +  str(j) + '_fr.me'):
+                    lines2  = io.read_file('me_files/prod' +  str(j) + '_fr.me')
+                printstr += parse(i+j-1, prod, lines, args.anharm,anfreqs,anxmat,deltaH,delH298,mess.hfbases[i+j-1],lines2)
+            if args.nTS > 0:
+                lines = io.read_file('geoms/tsgta_l1.log')
+                printstr += ts_parse(0,lines)
+                if args.nTS > 1:
+                    lines = io.read_file('geoms/wellr_l1.log')
+                    printstr += ts_parse(1,lines)
+                    if args.nTS > 2:
+                        lines = io.read_file('geoms/wellp_l1.log')
+                        printstr += ts_parse(2,lines)
+ #               printstr +=  parse()
+            print printstr
