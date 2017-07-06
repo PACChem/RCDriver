@@ -10,21 +10,21 @@ nhind
  -->namehind,hindmin,hindmax,nhindsteps,period
 
 natom natomt ilin
-2 2 1
+2 2 0
 
 charge  spin  atomlabel
 0 2
 o100
 h101  o100  r100
-
 intcoor
-r100 .9711
+R100 .9711
 
 SymmetryFactor
 1
 
 nelec
-1
+2
  0.  2.
+140  2.
 
 end

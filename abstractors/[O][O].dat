@@ -13,7 +13,7 @@ natom natomt ilin
 2 2 1
 
 charge  spin  atomlabel
-0 2
+0 3
 o100
 o101  o100  r100
 
@@ -25,6 +25,6 @@ SymmetryFactor
 
 nelec
 1
- 0.  2.
+ 0.  3.
 
 end
