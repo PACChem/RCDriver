@@ -6,7 +6,30 @@ import os
 import sys
 sys.path.insert(0, '/home/elliott/Packages/QTC/')
 import iotools as io
-import parse as pa
+import patools as pa
+
+"""
+Heatform determines the heat of formation for a molecule by using a basis of 
+molecules with well-determined heats of formation
+
+To use this script from command line you can do the following:
+(1) python heatform.py -l <logfile.log>
+    this will automatically determine what stoichiometry, program, level of theory, basis set,
+    and electronic energy heatform needs as parameters 
+(2) python heatform.py -s <stoichiometry> -p <program> -t <method>/<basisset> -e <energy>
+    manually set all these parameters so that no logfile is required
+(3) after (1) or (2)'s arguements, user can also use -b <chosen basis> to manually select the
+    basis of molecules
+To use this as a module in another script:
+(1) main(stoich, logfile, electronic_energy, basisset, theory, database, prog) will return 
+    the heat of formation in kcal.  If logfile is set, the rest can be auto (see defaults), and if 
+    logfile is gibberish, the rest must be set.
+"""
+#  TO DO:
+#  Option to compute energy for molecule of interest and not just basis species
+#  Search directory structures for energies instead of/ alongside using test database
+#  Store energies when they are computed for basis setsOnce energy is computed for basis sets
+
 def get_atomlist(mol):
     """
     Makes a list of all atoms in a molecule
@@ -154,6 +177,9 @@ def comp_coeff(mat,stoich):
 #        return dic
     
 def is_auto(item):
+    """
+    Checks if a parameter should be automatically determined
+    """
     if type(item) == float:
        if item == 9999.9:
            return True
@@ -163,34 +189,38 @@ def is_auto(item):
     return False
 
 def getname_fromdirname():
+    """
+    Sets stoichiometry as the directory name
+    """
     cwd = os.getcwd()
     return cwd.split('/')[-1]
 
+###FOR IF WE ARE USING A LOGFILE
 def getprog_fromlogfile(lines):
-     
+    """
+    returns name of program for the lines of a logfile
+    """ 
     return pa.get_prog(lines)
 
 def gettheory_fromlogfile(logfile):
-  
+    """
+    return the last method run in the logfile
+    """
     lines = io.read_file(logfile)
-    prog  = getprog_fromlogfile(lines)
-    if prog == 'g09':
-       return pa.gaussian_method(lines)
-    elif prog == 'molpro':
-       return pa.molpro_method(lines)
-    return 
+    return pa.method(lines).rstrip('R').rstrip('r')
 
 def getbasisset_fromlogfile(logfile):
+    """
+    returns basisset used in logfile
+    """
     lines = io.read_file(logfile)
-    prog  = getprog_fromlogfile(lines)
-    if prog == 'g09':
-       return pa.gaussian_basisset(lines)
-    elif prog == 'molpro':
-       return pa.molpro_basisset(lines)
-    return
+    return pa.basisset(lines)
 
 def getenergy_fromlogfile(logfile,theory):
-
+    """
+    Returns by default final energy solved for in logfile, or 
+    the energy corresponding to a given method in logfile
+    """
     lines = io.read_file(logfile)
     prog  = getprog_fromlogfile(lines)
     if prog == 'g09':
@@ -202,35 +232,33 @@ def getenergy_fromlogfile(logfile,theory):
     print 'no energy found for this molecule, please use -e to manually set it'
     return
 
-def H_dic(dic,key1,key2):
+def nest_2_dic(dic,key1,key2):
     """
-    More-or-less pointless functions that just returns a dictionary value but may be extended for some idiotproofing later
+    Returns a dictionary value that requires two key values (is in singly nested loop )
     """
     if key1 in dic:
         if key2 in dic[key1]:
             return dic[key1][key2]
-    print 'Heat of Formation not found -- ommitting its contribution'
+    print 'Value for ' + str(key1) + ',' + str(key2) + ' not found -- ommitting its contribution'
     return 0
 
 def get_gaussian_zmat(filename):
-
-    full  = io.read_file(filename)
-    full  = full.split('Z-matrix:')
-    zmat  = full[1].split('       Variables:')[0]
-    zmat += 'Variables:\n'
-    zmat  = zmat.replace('Charge = ','')
-    zmat  = zmat.replace('Multiplicity =','')
-    varis = full[1].split('Optimized Parameters')[1].split('--------------------------------------')[1]
-    varis = varis.split('\n')
-    del varis[0]
-    del varis[-1]
-    for var in varis:
-        var = var.split()
-        zmat += ' '+  var[1] + '\t' + var[2] + '\n'
-    return zmat
+    """
+    Forms a zmat from a gaussian logfile
+    """
+    lines  = io.read_file(filename)
+    return pa.gaussian_zmat(lines)
 
 def build_gauss(dic, theory, basisset):
-
+    """
+    Builds a Guassian optimization inputfile for a molecule
+    INPUT:
+    dic     - dictionary for the molecule
+    theory  - theory we want to optimize with
+    basisset- basis set we want to optimize with
+    OUPUT:
+    None (but an inputfile now exists with name <stoich>.inp)
+    """
     gauss  = '%Mem=25GB\n%nproc=8\n'
     gauss += '#P ' + theory.lstrip('R').lstrip('U') + '/' +  basisset +  ' opt=internal int=ultrafine scf=verytight nosym\n'
 
@@ -264,7 +292,15 @@ def build_gauss(dic, theory, basisset):
     return
 
 def build_molpro(dic, theory, basisset):
-
+    """
+    Builds a Guassian optimization inputfile for a molecule
+    INPUT:
+    dic     - dictionary for the molecule
+    theory  - theory we want to optimize with
+    basisset- basis set we want to optimize with
+    OUPUT:
+    None (but an inputfile now exists with name <stoich>.inp)
+    """
     molp  = 'memory,         200 ,m\nnosym\ngeometry={angstrom\n'
     meths = ['ccsdt','ccsd(t)','ccsd','m062x','b3lyp']
     bases = ['cc-pvqz','cc-pvtz','cc-pvdz','6-311+g(d,p)','6-31+g(d,p)']
@@ -301,20 +337,33 @@ def build_molpro(dic, theory, basisset):
     return 
 
 def run_gauss(filename):
-
+    """
+    Runs Gaussian on file: filename
+    """
     os.system('soft add +g09; g09 ' + filename)
     
     return
 
 def run_molpro(filename):
-
+    """
+    Runs molpro on file: filename
+    """
     os.system('/home/elliott/bin/molprop ' + filename)
     
     return
 
 def E_dic(dic,energORs,theory,basisset,prog):
     """
-    Checks a dictionary for energy at a specified level of theory and basisset and computes it if it isn't there
+    Checks a dictionary for energy at a specified level of theory and basisset
+    Computes energy if it isn't in dictionary already
+    INPUT:
+    dic      - dictionary we are checking
+    energORs - are we checking for the energy or its uncertainty (uncertainty broken)
+    theory   - theory energy should be listed or computed with
+    basisset - basis set energy should be listed or computed with
+    prog     - program an energy should be listed or computed with
+    OUTPUT:
+    E        - energy 
     """
     if prog.lower() in dic: 
         if theory.lower().lstrip('r') in dic[prog.lower()]:
@@ -325,7 +374,7 @@ def E_dic(dic,energORs,theory,basisset,prog):
         print 'Running G09 on ' + dic['stoich'] + ' at ' + theory.lstrip('R').lstrip('U') + '/' + basisset
         build_gauss(dic, theory, basisset)
         run_gauss(dic['stoich']+'.inp')
-        E = getenergy_fromlogfile(dic['stoich']+'.log',theory)
+        tmp, E = getenergy_fromlogfile(dic['stoich']+'.log',theory)
         print 'Energy found to be: ' + str(E)
         return E
 
@@ -333,7 +382,7 @@ def E_dic(dic,energORs,theory,basisset,prog):
         print 'Running Molpro on ' + dic['stoich'] + ' at ' + theory.lstrip('R').lstrip('U') + '/' + basisset
         build_molpro(dic, theory, basisset)
         run_molpro(dic['stoich']+'.inp')
-        E = getenergy_fromlogfile(dic['stoich']+'.log',theory)
+        tmp, E = getenergy_fromlogfile(dic['stoich']+'.log',theory)
         print 'Energy found to be: ' + str(E)
         return E
 
@@ -367,6 +416,7 @@ def comp_energy(mol,basis,coefflist,E,theory,basisset,prog):
             if dic['stoich'] == mol:
                 bas = dic
         E = E_dic(bas, 'energy',theory,basisset,prog)
+    print E
     lE        = E
     var       = 0
     for i,bas in enumerate(basis):
@@ -374,9 +424,10 @@ def comp_energy(mol,basis,coefflist,E,theory,basisset,prog):
             if dic['stoich'] == bas:
                 bas = dic
                 break
-        lE  +=  coefflist[i] * H_dic(bas,'HeatForm',  0) * 0.00038088
+        print nest_2_dic(bas,'HeatForm', 0)
+        lE  +=  coefflist[i] * nest_2_dic(bas,'HeatForm',  0) * 0.00038088
 
-        var += (coefflist[i] * H_dic(bas,'HeatForm','sigma') * 0.00038088   )**2
+        var += (coefflist[i] * nest_2_dic(bas,'HeatForm','sigma') * 0.00038088   )**2
         
         E    =  E_dic(bas, 'energy',theory,basisset,prog)
         lE  -=  coefflist[i] * E
@@ -502,6 +553,7 @@ if __name__ == '__main__':
     parser.add_argument('-t','--level_of_theory',   type=str,  default='auto/')
     parser.add_argument('-l','--logfile',           type=str,  default='geoms/reac1_l1.log')
     parser.add_argument('-d','--database',          type=str,  default='testdb')
+    parser.add_argument('-p','--program',           type=str,  default='g09')
 
     ###########################
     args = parser.parse_args()
@@ -512,5 +564,6 @@ if __name__ == '__main__':
     theory = args.level_of_theory
     logfile= args.logfile
     db     = args.database
+    prog   = args.program
 
-    main(mol,logfile, E, basis, theory, db) 
+    main(mol,logfile, E, basis, theory, db,prog) 

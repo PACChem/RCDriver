@@ -3,8 +3,8 @@
 import os
 import numpy as np
 import sys
-import parse as pa
 sys.path.insert(0, '/home/elliott/Packages/QTC/')
+import patools as pa
 import iotools as io
 import obtools as ob
 
@@ -28,16 +28,11 @@ class MOL:
         Uses QTC interface by Murat Keceli to Openbabel to generate cartesian coorinate file based 
         on SMILE string
         """
-        
         mol         = ob.get_mol(smiles)
-
         lines       =  ob.get_xyz(mol).split('\n')
-
         lines[0] = 'Geometry ' + lines[0] + ' Angstrom'
         del lines[1]
-
         io.write_file('\n'.join(lines), smiles + '.xyz')
-
         return 
     
     def ob_zmat(self,smiles):
@@ -75,10 +70,23 @@ class MOL:
         elif '.log' in self.XYZ.lower():
             cartlines = io.read_file('../' + self.XYZ)
             io.write_file(pa.gaussian_xyz_foresk(cartlines),smiles + '.xyz')
-        elif self.XYZ.lower() == 'true':
-            cartlines = io.read_file('../' + smiles + '.xyz')
-            io.write_file(cartlines,smiles + '.xyz')
-
+        else:
+            if io.check_file('../' + smiles + '.xyz'):
+                cartlines = io.read_file('../' + smiles + '.xyz')
+            elif len(self.XYZ.split('/')) > 2:  
+                if io.check_file(io.db_opt_path(self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2], None, smiles) + '/' + smiles + '.geo'):
+                    cartlines = io.db_get_opt_prop(smiles, 'geo', None, self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2])
+                    cartlines = 'Geometry ' + str(len(cartlines.split('\n'))-1) + ' Angstrom\n' + cartlines
+                    io.write_file(cartlines,smiles + '.xyz')
+                elif io.check_file(io.db_opt_path(self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2], None, smiles) + '/' + smiles + '.xyz'):
+                    cartlines = io.db_get_opt_prop(smiles, 'xyz', None, self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2]).split('\n\n')[1]
+                    cartlines = 'Geometry ' + str(len(cartlines.split('\n'))-1) + ' Angstrom\n' + cartlines
+                    io.write_file(cartlines,smiles + '.xyz')
+                else:
+                    print ('\nERROR: No geometry found at ' + io.db_opt_path(self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2], None, smiles)
+                                   + smiles + '.xyz' + '\n...building using OpenBabel instead')
+                    self.build_cart(smiles)
+                
         mol         = ob.get_mol(smiles)
         self.charge = ob.get_charge(mol)
         self.mult   = ob.get_multiplicity(mol)
@@ -130,7 +138,7 @@ class MOL:
         return atoms, measure, angles 
          
 
-    def build(self, n, angles, atoms = [], measure = []):
+    def build(self, n, smiles, angles, atoms = [], measure = []):
         """ 
         Builds reacn.dat or prodn.dat for EStokTP withh user defined nosmps (Monte Carlo sampling points
         for geometry search) and nhindsteps (number of points on the PES) 
@@ -199,7 +207,14 @@ class MOL:
                 optim += '\n\t' + meas[1]              
             for i in range(len(angles)):
                 optim += '\n\t60'             
-            optim += '\n\t' + str(pa.gaussian_energy(io.read_file('../' + self.XYZ)))
+            if '.log' in self.XYZ:
+                optim += '\n\t' + str(pa.gaussian_energy(io.read_file('../' + self.XYZ)))
+            else:
+                E = io.db_get_sp_prop(smiles, 'ene', None, self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2])
+                if E == None:
+                    print('\nNo energy found at ' + io.db_sp_path(self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2], None, smiles,self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2])
+                           + smiles + '.ene\n')
+                optim += '\n\t' + E 
             io.write_file(optim, '../output/' + self.typemol + str(n) + '_opt.out')
         elif '1' in self.xyzstart:
             optim = 'opt level1 0'
@@ -340,9 +355,9 @@ def build_estoktp(params, jobs, nreacs, nprods, nTS):
         if nTS != 0:
             eststring += '  ' + str(nTS) + 'TS'
             if nTS > 1:
-                eststring += '\n WellR findgeom level0'
+                eststring += '\n WellR findgeom level1'
                 if nTS > 2:
-                    eststring += '\n WellP findgeom level0'
+                    eststring += '\n WellP findgeom level1'
     if 'Irc' in jobs:
         eststring += '\n Variational'
     if nprods > 0:
@@ -375,7 +390,7 @@ def build_estoktp(params, jobs, nreacs, nprods, nTS):
                     eststring += '\n nTauo_' + Tstype[n]
                 else:
                     eststring += '\n Tauo_' + Tstype[n]
-            else:
+            elif 'Opt' not in job:
                 eststring += '\n ' + job + '_' + Tstype[n]
                 
         eststring += '\n'
