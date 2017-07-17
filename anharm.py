@@ -226,16 +226,27 @@ def main(args):
         anharminp = args['anharmlog' ] + '.inp'
         node      = args['node' ]
         anlevel   = args['theory' ]
+        optlevel  = args['optlevel']
+        smiles    = args['smiles']
         if args['writegauss'] == 'true':
-            write_anharm_inp(eskfile,anharminp,anlevel)
+            write_anharm_inp(eskfile,anharminp,'{}/{}'.format(anlevel.split('/')[1], anlevel.split('/')[2]))
         if args['rungauss'] == 'true':
             run_gauss(anharminp,node)
         proj, b   = get_freqs(eskproj)
         unproj, a = get_freqs(eskunproj)
         #xmat = gauss_xmat(anharmlog,natoms)
-        xmat = qc.get_gaussian_xmatrix(io.read_file(anharmlog),len(unproj))
+        andire = io.db_sp_path(anlevel.split('/')[0], anlevel.split('/')[1], anlevel.split('/')[2], None, smiles,
+              optlevel[0], optlevel[1], optlevel[2])
+        if io.check_file(andire + '/' + smiles + '.xmat'):
+            xmat = io.db_get_sp_prop(smiles, 'xmat', andire).split('\n')
+            for i in range(len(xmat)):
+                xmat[i] = xmat[i].split(',')
+        elif io.check_file(anharmlog):
+            xmat = qc.get_gaussian_xmatrix(io.read_file(anharmlog),len(unproj))
         for i in range(len(xmat)):
+            xmat[i][i] = float(xmat[i][i])
             for j in range(i):
+                xmat[i][j] = float(xmat[i][j])
                 xmat[j][i] = xmat[i][j]
         modes     = find_hinfreqs(proj,unproj,a)
         xmat      = remove_modes(xmat,modes)

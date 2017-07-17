@@ -1,8 +1,7 @@
 Restart at: 0
-(0 - beginning, 1 - reac/prod/ts.dat files already created, 
- 2 - estoktp/theory files already created, 3 - estoktp level 0 successfully completed
- 4 - estoktp level 1 successfully completed, 5 - estoktp 1D successfully completed, 
- 6 - estoktp MD successfully completed or not desired, 7 - )
+(0 - beginning, 1 - estoktp level 0 successfully completed
+ 2 - estoktp level 1 completed, 3 - estoktp 1D completed, 
+ 4 - estoktp MD completed, 5 - just run thermo)
 Parse all: True
 
 ============

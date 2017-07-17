@@ -32,7 +32,7 @@ class ES:
         self.node    =   args.node     
         self.coresh  =   args.coresh   
         self.coresl  =   args.coresl   
-        
+   
    
     def build_subdirs(self):
         
@@ -55,99 +55,94 @@ class ES:
         """
         os.chdir('./data')
 
-        if self.restart < 10: 
+        stoich = []
+        params = (self.nsamps, self.interval,self.nsteps,self.XYZ,self.xyzstart,'MdTau' in self.jobs)
+        Reac = build.MOL(params,'reac')
+        Prod = build.MOL(params,'prod')
+        
+        params = (str(int(self.nsamps)*2), self.interval,self.nsteps,self.XYZ,'start','MdTau' in self.jobs)
+        TS   = build.MOL(params,'ts') 
 
-            stoich = []
+        reacs = self.reacs
+        prods = self.prods
+        
+        if 'abstraction' in self.reactype.lower():
+            key = ['[CH3]','[O]','[O][O]','O[O]','[OH]','[H]']
+        elif  'addition' in self.reactype.lower():
+            key = ['[O][O]']
+        else: 
+            key = []
 
-            params = (self.nsamps, self.interval,self.nsteps,self.XYZ,self.xyzstart,'MdTau' in self.jobs)
-            Reac = build.MOL(params,'reac')
-            Prod = build.MOL(params,'prod')
-            
-            params = (str(int(self.nsamps)*2), self.interval,self.nsteps,self.XYZ,'start','MdTau' in self.jobs)
-            TS   = build.MOL(params,'ts') 
+        i,j,k = 0,0,0
+        TScharge, TSspin = 0, 0
 
-            reacs = self.reacs
-            prods = self.prods
-            
-            if 'abstraction' in self.reactype.lower():
-                key = ['[CH3]','[O]','[O][O]','O[O]','[OH]','[H]']
-            elif  'addition' in self.reactype.lower():
-                key = ['[O][O]']
-            else: 
-                key = []
+        for i, reac in enumerate(reacs,start=1):
+            print('Task: Building reac' + str(i) + '.dat...')
+            atoms, measure, angles = Reac.cart2zmat(reac)
+            zmatstring = Reac.build(i, reac, angles, atoms,  measure)
+            zmat = Reac.typemol +str(i) + '.dat'
+            io.write_file(zmatstring, zmat)
+            if self.nTS > 0:
+                TScharge += Reac.charge
+                TSspin   += 1./2 * (Reac.mult - 1)
+                if i == 1:
+                    TSangles, TSatoms  = angles, atoms
+                elif reac in key:
+                    import shutil
+                    shutil.copyfile('/home/elliott/Packages/TorsScan/abstractors/' + reac + '.dat','reac2.dat')
+                    
+            stoich.append(Reac.stoich)
+            print('completed')
 
-            i,j,k = 0,0,0
-            TScharge, TSspin = 0, 0
+        for j, prod in enumerate(prods,start=1):
+            print('Task: Building prod' + str(j) + '.dat...')
+            atoms, measure, angles = Prod.cart2zmat(prod)
+            zmatstring = Prod.build(j, prod, angles, atoms, measure)
+            zmat = Prod.typemol +str(j) + '.dat'
+            io.write_file(zmatstring, zmat)
+            stoich.append(Prod.stoich)
+            print('completed')
 
-            for i, reac in enumerate(reacs,start=1):
-                print('Task: Building reac' + str(i) + '.dat...')
-                atoms, measure, angles = Reac.cart2zmat(reac)
-                zmatstring = Reac.build(i, reac, angles, atoms,  measure)
-                zmat = Reac.typemol +str(i) + '.dat'
-                io.write_file(zmatstring, zmat)
-                if self.nTS > 0:
-                    TScharge += Reac.charge
-                    TSspin   += 1./2 * (Reac.mult - 1)
-                    if i == 1:
-                        TSangles, TSatoms  = angles, atoms
-                    elif reac in key:
-                        import shutil
-                        shutil.copyfile('/home/elliott/Packages/TorsScan/abstractors/' + reac + '.dat','reac2.dat')
-                        
-                stoich.append(Reac.stoich)
-                print('completed')
-
-            for j, prod in enumerate(prods,start=1):
-                print('Task: Building prod' + str(j) + '.dat...')
-                atoms, measure, angles = Prod.cart2zmat(prod)
-                zmatstring = Prod.build(j, prod, angles, atoms, measure)
-                zmat = Prod.typemol +str(j) + '.dat'
-                io.write_file(zmatstring, zmat)
-                stoich.append(Prod.stoich)
-                print('completed')
-
-            tstype = ['ts','wellr','wellp']
-            for k in range(self.nTS):
-                print('Task: Building ' + tstype[k] +  '.dat...')
+        tstype = ['ts','wellr','wellp']
+        for k in range(self.nTS):
+            print('Task: Building ' + tstype[k] +  '.dat...')
+            TS.charge = TScharge
+            TS.mult   = int(2.*TSspin + 1)
+            TS.symnum = ' 1'
+            if k == 0:
+                zmatstring =TS.build(tstype[k], prod, TSangles, TSatoms)
+            else:
+                params = ('1', self.interval,self.nsteps,'False','start','MdTau' in self.jobs)
+                TS   = build.MOL(params,'ts') 
                 TS.charge = TScharge
                 TS.mult   = int(2.*TSspin + 1)
                 TS.symnum = ' 1'
-                if k == 0:
-                    zmatstring =TS.build(tstype[k], prod, TSangles, TSatoms)
-                else:
-                    params = ('1', self.interval,self.nsteps,'False','start','MdTau' in self.jobs)
-                    TS   = build.MOL(params,'ts') 
-                    TS.charge = TScharge
-                    TS.mult   = int(2.*TSspin + 1)
-                    TS.symnum = ' 1'
-                    zmatstring =TS.build(tstype[k], [], [])
-                zmat = tstype[k] + '.dat'
-                io.write_file(zmatstring, zmat)
+                zmatstring =TS.build(tstype[k], [], [])
+            zmat = tstype[k] + '.dat'
+            io.write_file(zmatstring, zmat)
 
-            self.stoich = stoich[0]
-            self.mol    =   reac[0]
+        self.stoich = stoich[0]
+        self.mol    =   reac[0]
 
-        if self.restart < 7:
+        print('Task: Building theory.dat...')
+        theostring = build.build_theory(self.meths,self.nTS)
+        io.write_file(theostring, 'theory.dat')
+        print('completed')
 
-            print('Task: Building theory.dat...')
-            theostring = build.build_theory(self.meths,self.nTS)
-            io.write_file(theostring, 'theory.dat')
-            print('completed')
-
-            print('Task: Building estoktp.dat...')
-            for l,job in enumerate(self.jobs):
-                if job == 'Opt'   and self.restart > 2:
-                    self.jobs[l]  = 'n' + job
-                if job == 'Opt_1' and self.restart > 3:
-                    self.jobs[l]  = 'n' + job
-                if job == '1dTau' and self.restart > 4:
-                    self.jobs[l]  = 'n' + job
-                if job == 'MdTau' and self.restart > 5:
-                    self.jobs[l]  = 'n' + job
-            params    = (self.stoich, self.reactype, self.coresh,self.coresl,self)
-            eststring = build.build_estoktp(params,self.jobs,i,j,self.nTS)
-            io.write_file(eststring, 'estoktp.dat')
-            print('completed')
+        print('Task: Building estoktp.dat...')
+        for l,job in enumerate(self.jobs):
+            if job == 'Opt'   and self.restart > 0:
+                self.jobs[l]  = 'n' + job
+            if job == 'Opt_1' and self.restart > 1:
+                self.jobs[l]  = 'n' + job
+            if job == '1dTau' and self.restart > 2:
+                self.jobs[l]  = 'n' + job
+            if job == 'MdTau' and self.restart > 3:
+                self.jobs[l]  = 'n' + job
+        params    = (self.stoich, self.reactype, self.coresh,self.coresl,self)
+        eststring = build.build_estoktp(params,self.jobs,i,j,self.nTS)
+        io.write_file(eststring, 'estoktp.dat')
+        print('completed')
 
         os.chdir('..')
 
@@ -162,7 +157,8 @@ class ES:
         """
         print('Task: Submitting EStokTP job...')
         if self.node == '0':
-            os.system('soft add +g09; soft add +gcc-5.3; /home/elliott/Packages/EStokTP/exe/estoktp.x >& estoktp.log')
+           # os.system('soft add +g09; soft add +gcc-5.3; /home/elliott/Packages/EStokTP/exe/estoktp.x >& estoktp.log')
+            os.system('soft add +g09; soft add +gcc-5.3; /lcrc/project/PACC/codes/EStokTP/exe/estoktp.x >& estoktp.log')
         elif self.node == 'd' or self.node == 'debug':
             print('task skipped')
             return
@@ -183,6 +179,7 @@ class MESS:
         self.node     = args.node
         self.meths    = args.meths
         self.hfbasis  = args.hfbasis
+        self.optlevel = args.optlevel
 
     def build(self):
         """
@@ -196,20 +193,22 @@ class MESS:
         node     = self.node
         meths    = self.meths
 
+        optprog, optmethod, optbasis = self.optlevel.split('/')
+        prog, method, basis = optprog, optmethod, optbasis
+        if io.check_file('../geoms/reac1_l1.log'):
+            lines  =  io.read_file('../geoms/reac1_l1.log')
+            prog   =  pa.get_prog(lines) 
+            method =  pa.method(lines).lower().lstrip('r')
+            basis  =  pa.basisset(lines).lower() 
+        for meth in self.meths:
+            if 'tau' in meth[0]:
+                prog, method, basis = meth[1], meth[2].split('/')[0], meth[2].split('/')[1]
+
         species = []
         speclist = []
         if not os.path.exists('me_files'):
             print('failed -- me_files not found, check estoktp.log')
             return
-        if os.path.exists(reacs[0].strip() + '.pf'):
-            pfqtc = self.extract_mess(reacs[0].strip() + '.pf').split('\n') #Copy 1st section of QTC pf file
-            tf   = ''
-            for line in pfqtc:
-                #if line == 'Frequencies': #use QTC geometry
-                #   break
-                if "Species" in line:                                     #Use EStokTP geometry
-                   break
-                tf += line + '\n'
         else:
             tf =" Temperature(step[K],size)\t100.\t30\n RelativeTemperatureIncrement\t\t 0.001\n"
  
@@ -241,18 +240,28 @@ class MESS:
                 fr = self.extract_mess('reac' + str(n+1) + '_fr.me')                 #Copy EStokTP projfrequencies
                 fr = fr.split('End')[0] + 'End  '
             else:
-                for meth in meths:
-                    if str(anharm) in meth[0]:
-                        anlevel = meth[2]
+                if anharm.split('/') > 3:
+                    anharm = anharm.replace('gaussian','g09')
+                    split = anharm.split('/')
+                    optlevel = '{}/{}/{}'.format(split[0],split[1],split[2])
+                    anlevel =  '{}/{}/{}'.format(split[3],split[4],split[5])
+                else:
+                    for meth in meths:
+                        if str(anharm) in meth[0]:
+                            anlevel = meth[1] + '/' +  meth[2]
+                        else:
+                            anlevel = ''
                 os.chdir('..')                          
-                anfr,fr1, anx,fr2,fr3 = get_anharm('reac', str(n+1), natom,node,anlevel,anovrwrt,reac)  #(xmat with projected out scanned torsional modes)
+                anfr,fr1, anx,fr2,fr3 = get_anharm('reac', str(n+1), natom,node,anlevel,anovrwrt,reac, optlevel.split('/'))  #(xmat with projected out scanned torsional modes)
                 fr =  fr1 +  fr2 + fr3
                 self.anfreqs.append(anfr)
                 self.anxmat.append(anx)
                 os.chdir('me_files')
+            zpve = io.read_file('reac' + str(n+1) + '_zpe.me')
+            io.db_store_sp_prop(zpve, reac, 'zpve', prog = prog, optprog = optprog, method= method, optmethod=optmethod, basis=basis, optbasis=optbasis)  
+
             os.chdir('..')                          
             print('completed')
-
             print('Task: Building MESS input file...')
             pf = tf + ge + hr + fr
             io.write_file(pf + '\n',reac.strip() + '.pf')
@@ -281,15 +290,23 @@ class MESS:
                 fr = self.extract_mess('prod' + str(n+1) + '_fr.me')                 #Copy EStokTP projfrequencies
                 fr = fr.split('End')[0] + 'End  '
             else:
-                for meth in meths:
-                    if str(anharm) in meth[0]:
-                        anlevel = meth[2]
+                if '/' in anharm:
+                    anlevel = anharm
+                else:
+                    for meth in meths:
+                        if str(anharm) in meth[0]:
+                            anlevel = meth[1] + '/' + meth[2]
+                        else:
+                            anlevel = ''
                 os.chdir('..')                           
-                anfr,fr1, anx,fr2, fr3 = get_anharm('prod', str(n+1), natom,node,anlevel,anovrwrt,prod)  #(xmat with projected out scanned torsional modes)
+                anfr,fr1, anx,fr2, fr3 = get_anharm('prod', str(n+1), natom,node,anlevel,anovrwrt,prod, optlevel.split('/'))  #(xmat with projected out scanned torsional modes)
                 fr = fr1 +  fr2 + fr3
                 self.anfreqs.append(anfr)
                 self.anxmat.append(anx)
                 os.chdir('me_files')
+            zpve = io.read_file('reac' + str(n+1) + '_zpe.me')
+            io.db_store_sp_prop(zpve, reac, 'zpve', prog = prog, optprog = optprog, method= method, optmethod=optmethod, basis= basis, optbasis=optbasis)  
+
             os.chdir('..')                        
             print('completed')
 
@@ -457,7 +474,10 @@ class ARGS:
             self.restart = 0
         else:
             self.restart = int(self.restart)
-    
+        if '1' in self.xyzstart and self.restart < 2:
+            self.restart = 2
+        if '0' in self.xyzstart and self.restart < 1:
+            self.restart = 1
         return
        
     def rmg_params(self,rmgfile):
@@ -502,25 +522,27 @@ class ARGS:
                         self.ts.append(tsdic[ts][0])
         return
 
-def get_anharm(rorp,i,natom,node,anlevel,anovrwrt,species):
+def get_anharm(rorp,i,natom,node,anlevel,anovrwrt,species, optlevel):
 
     import anharm
 
     opts= {}
+    opts['smiles'    ] =  species
     opts['node'      ] =  node
     opts['theory'    ] =  anlevel
+    opts['optlevel'  ] =  optlevel
     opts['logfile'   ] = 'geoms/' + rorp +  i + '_l1.log'
     opts['natoms'    ] =  natom 
     opts['freqfile'  ] = 'me_files/' + rorp +  i + '_fr.me' 
     opts['unprojfreq'] = 'me_files/' + rorp +  i + '_unpfr.me'
-    if io.check_file(species + 'anharm.log') and not anovrwrt.lower() == 'true':
-        opts['anharmlog' ] = species + 'anharm'
-        opts['writegauss'] = 'false'
-        opts['rungauss'  ] = 'false'
-    else:
-        opts['writegauss'] = 'true'
-        opts['rungauss'  ] = 'true'
-        opts['anharmlog' ] = species + 'anharm'
+    #if io.check_file(species + 'anharm.log') and not anovrwrt.lower() == 'true':
+    #    opts['anharmlog' ] = species + 'anharm'
+    #    opts['writegauss'] = 'false'
+    #    opts['rungauss'  ] = 'false'
+    #else:
+    opts['writegauss'] = 'false'
+    opts['rungauss'  ] = 'false'
+    opts['anharmlog' ] = species + 'anharm'
 
     return anharm.main(opts)
 
@@ -551,19 +573,82 @@ def get_param(param,keyword,inputlines):
              return get_val(line,1)
      return param
  
-def parse(n, species, lines, anharm,anfreqs,anxmat,deltaH0,deltaH298,hfbasis,lines2):
+def parse(n, species, lines, optlevel,lines2):
     printstr= '=====================\n          '+species+'\n=====================\n'
+    printstr = ''
     prog   =  pa.get_prog(lines) 
-    method =  pa.method(  lines).lower().lstrip('r')
+    method =  pa.method(lines).lower().lstrip('r')
     basis  =  pa.basisset(lines).lower() 
+    optprog, optmethod, optbasis = optlevel.split('/')
     energy = str(pa.energy(lines)[1]) 
-    zmat   =  pa.zmat(    lines)    
-    xyz    =  pa.xyz(     lines) 
+    zmat   =  pa.zmat(lines)   
+    if prog == 'g09': 
+        xyz    =  pa.gaussian_geo(lines) 
+    else: 
+        xyz    = None
     rotcon = ', '.join(pa.rotconsts(lines))
-    freqs  = ', '.join(freq for freq in pa.freqs(lines)[::-1])
-    if lines2 != None:
-        pfreqs  = ', '.join(str(freq) for freq in pa.EStokTP_freqs(lines2))
+    freqs  =  pa.freqs(lines)
+    xmat   = []
+    if lines2 != '':
+        pfreqs  = pa.EStokTP_freqs(lines2)
+    else: 
+        pfreqs = []
+    
+    freqs   = ', '.join(freq for freq in freqs[::-1])
+    pfreqs  = ', '.join('{:>9}'.format(freq) for freq in pfreqs)
 
+    printstr += 'Optimized at : {}\n'.format(optlevel)
+    printstr += 'Prog  : ' + prog   + '\n'
+    printstr += 'Method: ' + method + '\n' 
+    printstr += 'Basis:  ' + basis  + '\n'
+    printstr += 'Energy: ' + energy + ' A.U.\n'
+    printstr += 'Rotational Constants:' + rotcon  + ' GHz\n'
+    printstr += 'Zmatrix (Angstrom):' + zmat   + '\n'
+    if xyz != None:
+        printstr += 'Cartesian coordinates (Angstrom):\n' + pa.xyz(lines) 
+    printstr += '\nUnprojected Frequencies (cm-1):\t'  + freqs
+    if lines2 != '':
+        printstr += '\nProjected Frequencies   (cm-1):\t'  + pfreqs
+    return printstr
+
+def parse_all(n, species, lines, anharm,anfreqs,anxmat,deltaH0,deltaH298,hfbasis,optlevel,lines2):
+    printstr= '=====================\n          '+species+'\n=====================\n'
+    printstr = ''
+    prog   =  pa.get_prog(lines) 
+    method =  pa.method(lines).lower().lstrip('r')
+    basis  =  pa.basisset(lines).lower() 
+    optprog, optmethod, optbasis = optlevel.split('/')
+    energy = str(pa.energy(lines)[1]) 
+    zmat   =  pa.zmat(lines)   
+    if prog == 'g09': 
+        xyz    =  pa.gaussian_geo(lines) 
+    else: 
+        xyz    = None
+    rotcon = ', '.join(pa.rotconsts(lines))
+    freqs  =  pa.freqs(lines)
+    xmat   = []
+    if lines2 != '':
+        pfreqs  = pa.EStokTP_freqs(lines2)
+    else: 
+        pfreqs = []
+    
+    #d = {optlevel:
+    #     {prog:
+    #      {'torsscan':
+    #       {method:
+    #        {basis:{
+    #         'number of basis functions':0,
+    #         'energy':energy,
+    #          'geometry':{
+    #           'xyz':xyz,
+    #           'harmonic frequencies' : freqs,
+    #           'xmat': xmat }}}}}}}
+    #print d
+    freqs   = ', '.join(freq for freq in freqs[::-1])
+    pfreqs  = ', '.join('{:>9}'.format(freq) for freq in pfreqs)
+
+    printstr += 'Optimized at : {}\n'.format(optlevel)
+    printstr += 'Energy: ' + energy + ' A.U.\n'
     printstr += 'Prog  : ' + prog   + '\n'
     printstr += 'Method: ' + method + '\n' 
     printstr += 'Basis:  ' + basis  + '\n'
@@ -571,33 +656,33 @@ def parse(n, species, lines, anharm,anfreqs,anxmat,deltaH0,deltaH298,hfbasis,lin
     printstr += 'Rotational Constants:' + rotcon  + ' GHz\n'
     printstr += 'Zmatrix (Angstrom):' + zmat   + '\n'
 
-    io.db_store_opt_prop(zmat, species, 'zmat', None, prog, method, basis)
+    io.db_store_opt_prop(zmat, species, 'zmat', None, optprog, optmethod, optbasis)
     if xyz != None:
         printstr += 'Cartesian coordinates (Angstrom):\n' + pa.xyz(lines) 
-        io.db_store_opt_prop(xyz, species, 'geo', None, prog, method, basis)
-        xyz = str(len(xyz.split('\n'))-1) + '\n\n' + xyz
-        io.db_store_opt_prop(xyz, species, 'xyz', None, prog, method, basis)
+        io.db_store_opt_prop(xyz, species, 'geo', None, optprog, optmethod, optbasis)
+        xyz = str(len(xyz.split('\n'))) + '\n\n' + xyz
+        io.db_store_opt_prop(xyz, species, 'xyz', None, prog, optmethod, optbasis)
     printstr += '\nUnprojected Frequencies (cm-1):\t'  + freqs
-    if lines2 != None:
+    if lines2 != '':
         printstr += '\nProjected Frequencies   (cm-1):\t'  + pfreqs
-        io.db_store_sp_prop(pfreqs,species,'phrm', None, prog, method, basis)
-    io.db_store_sp_prop(energy, species, 'ene', None, prog, method, basis)
-    io.db_store_sp_prop(freqs,  species, 'hrm', None, prog, method, basis)
-    io.db_store_sp_prop(rotcon, species,  'rc', None, prog, method, basis)
+        io.db_store_sp_prop(pfreqs,species,'phrm', None, prog, method, basis, optprog, optmethod, optbasis)
+    io.db_store_sp_prop(energy, species, 'ene', None, prog, method, basis, optprog, optmethod, optbasis)
+    io.db_store_sp_prop(freqs,  species, 'hrm', None, prog, method, basis, optprog, optmethod, optbasis)
+    io.db_store_sp_prop(rotcon, species,  'rc', None, prog, method, basis, optprog, optmethod, optbasis)
     if anharm != 'false':
         anpfr     = ', '.join('%4.4f' % freq for freq in anfreqs[i-1])
         pxmat     =('\n\t'.join(['\t'.join(['%3.3f'%item for item in row]) 
                     for row in anxmat[n-1]]))
-        io.db_store_sp_prop(anpfr, species, 'panhrm', None, prog, method, basis)
-        #io.db_store_sp_prop(pxmat, species, 'pxmat', None, prog, method, basis)   ##probably not at right level of theory
+        io.db_store_sp_prop(anpfr, species, 'panhrm', None, prog, method, basis, optprog, optmethod, optbasis)
+        #io.db_store_sp_prop(pxmat, species, 'pxmat', None, prog, method, basis, prog, method, basis)   ##probably not at right level of theory
         printstr += '\nAnharmonic Frequencies  (cm-1):\t' + anpfr
         printstr += '\nX matrix:\n\t' + pxmat #+   anxmat[i-1]
-    
+     
     printstr += '\nHeat of formation(  0K): ' + str(deltaH[i-1]) + ' kcal /' + str(deltaH[n-1]/.00038088/ 627.503) + ' kJ\n'
     hf298k    = str(deltaH298[n-1])
-    if not io.check_file(io.db_sp_path(prog, method, basis, None, species, prog, method, basis) + '/' + species + '.hf298k'):
-        io.db_store_sp_prop('Energy (kcal)\tBasis\n----------------------------------\n',species,'hf298k',None,prog,method,basis)
-    io.db_append_sp_prop(hf298k + '\t' + ', '.join(hfbasis) + '\n', species, 'hf298k',None, prog,method,basis)
+    if not io.check_file(io.db_sp_path(prog, method, basis, None, species, optprog, optmethod, optbasis) + '/' + species + '.hf298k'):
+        io.db_store_sp_prop('Energy (kcal)\tBasis\n----------------------------------\n',species,'hf298k',None,prog,method,basis, optprog, optmethod, optbasis)
+    io.db_append_sp_prop(hf298k + '\t' + ', '.join(hfbasis) + '\n', species, 'hf298k',None, prog,method,basis, optprog, optmethod, optbasis)
     printstr += 'Heat of formation(298K): ' + hf298k   + ' kcal /' + str(float(deltaH298[n-1])/.00038088/ 627.503) + ' kJ\n'
     return printstr
 
@@ -678,16 +763,25 @@ if __name__ == "__main__":
     random_cute_animal()
 
     if len(sys.argv) > 1:
-        optionfile = sys.argv[1]
+        optionfile = sys.argv[-1]
     else:
         optionfile = 'input.dat'
 
     args = ARGS(optionfile)
     es   = ES(args)             
-    if args.restart < 7:
+    if args.restart < 5:
         es.build_subdirs()
         es.build_files()
         es.execute()
+    if '1' in args.xyzstart:
+        if len(args.XYZ.split('/')) >  2:
+            optlevel = args.XYZ
+    else:
+        for meth in args.meths:
+            if meth[0] == 'level1':
+                optlevel = '{}/{}'.format(meth[1],meth[2])
+                break
+    args.optlevel=optlevel
     import patools as pa
     if args.alltherm.lower() == 'true':
         mess = MESS(args)
@@ -703,24 +797,42 @@ if __name__ == "__main__":
             printstr += '\n||____________________||\n\n'
             for i,reac in enumerate(args.reacs, start=1):
                 lines   = io.read_file('geoms/reac' + str(i) + '_l1.log')
-                lines2  = None
+                lines2  = ''
                 if io.check_file('me_files/reac' +  str(i) + '_fr.me'):
                     lines2  = io.read_file('me_files/reac' +  str(i) + '_fr.me')
-                printstr += parse(i, reac, lines, args.anharm,anfreqs,anxmat,deltaH,delH298,mess.hfbases[i-1],lines2)
+                printstr += parse_all(i, reac, lines, args.anharm,anfreqs,anxmat,deltaH,delH298,mess.hfbases[i-1],optlevel,lines2)
             for j,prod in enumerate(args.prods, start=1):
                 lines = io.read_file('geoms/prod' + str(j) + '_l1.log')
-                lines2 = None
+                lines2 = ''
                 if io.check_file('me_files/reac' +  str(j) + '_fr.me'):
                     lines2  = io.read_file('me_files/prod' +  str(j) + '_fr.me')
-                printstr += parse(i+j-1, prod, lines, args.anharm,anfreqs,anxmat,deltaH,delH298,mess.hfbases[i+j-1],lines2)
-            if args.nTS > 0:
-                lines = io.read_file('geoms/tsgta_l1.log')
-                printstr += ts_parse(0,lines)
-                if args.nTS > 1:
-                    lines = io.read_file('geoms/wellr_l1.log')
-                    printstr += ts_parse(1,lines)
-                    if args.nTS > 2:
-                        lines = io.read_file('geoms/wellp_l1.log')
-                        printstr += ts_parse(2,lines)
- #               printstr +=  parse()
+                printstr += parse_all(i+j-1, prod, lines, args.anharm,anfreqs,anxmat,deltaH,delH298,mess.hfbases[i+j-1],optlevel,lines2)
+            #if args.nTS > 0:
+            #    lines = io.read_file('geoms/tsgta_l1.log')
+            #    printstr += ts_parse(0,lines)
+            #    if args.nTS > 1:
+            #        lines = io.read_file('geoms/wellr_l1.log')
+            #        printstr += ts_parse(1,lines)
+            #        if args.nTS > 2:
+            #            lines = io.read_file('geoms/wellp_l1.log')
+            #            printstr += ts_parse(2,lines)
+ #          #     printstr +=  parse()
+            print printstr
+    elif args.parseall.lower() == 'true':
+            printstr  = '\n\n ______________________'
+            printstr += '\n||                    ||'
+            printstr += '\n||       OUTPUT       ||'
+            printstr += '\n||____________________||\n\n'
+            for i,reac in enumerate(args.reacs, start=1):
+                lines   = io.read_file('geoms/reac' + str(i) + '_l1.log')
+                lines2  = ''
+                if io.check_file('me_files/reac' +  str(i) + '_fr.me'):
+                    lines2  = io.read_file('me_files/reac' +  str(i) + '_fr.me')
+                printstr += parse(i, reac, lines, optlevel,lines2)
+            for j,prod in enumerate(args.prods, start=1):
+                lines = io.read_file('geoms/prod' + str(j) + '_l1.log')
+                lines2 = ''
+                if io.check_file('me_files/reac' +  str(j) + '_fr.me'):
+                    lines2  = io.read_file('me_files/prod' +  str(j) + '_fr.me')
+                printstr += parse(i+j-1, prod, lines, optlevel,lines2)
             print printstr

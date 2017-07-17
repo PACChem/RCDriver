@@ -72,7 +72,13 @@ class MOL:
             io.write_file(pa.gaussian_xyz_foresk(cartlines),smiles + '.xyz')
         else:
             if io.check_file('../' + smiles + '.xyz'):
-                cartlines = io.read_file('../' + smiles + '.xyz')
+                cartlines = io.read_file('../' + smiles + '.xyz').split('\n\n')[1]
+                cartlines = 'Geometry ' + str(len(cartlines.split('\n'))-1) + ' Angstrom\n' + cartlines
+                io.write_file(cartlines,smiles + '.xyz')
+            elif io.check_file('../' + smiles + '.geo'):
+                cartlines = io.read_file('../' + smiles + '.geo')
+                cartlines = 'Geometry ' + str(len(cartlines.split('\n'))-1) + ' Angstrom\n' + cartlines
+                io.write_file(cartlines,smiles + '.xyz')
             elif len(self.XYZ.split('/')) > 2:  
                 if io.check_file(io.db_opt_path(self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2], None, smiles) + '/' + smiles + '.geo'):
                     cartlines = io.db_get_opt_prop(smiles, 'geo', None, self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2])
@@ -91,12 +97,11 @@ class MOL:
         self.charge = ob.get_charge(mol)
         self.mult   = ob.get_multiplicity(mol)
         self.stoich = ob.get_formula(mol)
-
         #Peform Test_Chem#########################3
         tempfile = 'temp'
-        cart       = os.getcwd() + '/' +  smiles.replace('[','\[').replace(']','\]') + '.xyz'
+        cart     = os.getcwd() + '/' +  smiles.replace('[','\[').replace(']','\]') + '.xyz'
+        cart     = cart.replace('(','\(').replace(')','\)')  
         os.system(self.convert + ' ' + cart + ' > ' + tempfile)
-
         if os.stat(tempfile).st_size < 80:
             print('Failed')
             print('Please check that directory name and cartesian coordinate file name are equivalent')
@@ -188,9 +193,11 @@ class MOL:
     
             zmatstring += '\nintcoor'
 
+            deletedangles=[]
             for hin in angles:                                       #Deletes rotational angles from
                 for i,meas in enumerate(measure):                    #The internal coordinate list
-                    if hin.lower().strip() == meas[0].lower().strip(): 
+                    if hin.lower().strip() == meas[0].lower().strip():
+                        deletedangles.append(measure[i][1]) 
                         measure = np.array([np.delete(measure.T[0],i),np.delete(measure.T[1],i)]).T
             for meas in measure:
                 zmatstring += '\n' + meas[0] + ' ' + meas[1]
@@ -206,14 +213,18 @@ class MOL:
             for meas in measure:
                 optim += '\n\t' + meas[1]              
             for i in range(len(angles)):
-                optim += '\n\t60'             
+                optim += '\n\t{}'.format(deletedangles[i])             
             if '.log' in self.XYZ:
                 optim += '\n\t' + str(pa.gaussian_energy(io.read_file('../' + self.XYZ)))
-            else:
-                E = io.db_get_sp_prop(smiles, 'ene', None, self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2])
+            elif io.check_file('../' + smiles + '.ene'):
+                E = io.read_file('../' + smiles + '.ene')
+            elif len(self.XYZ.split('/')) > 2 :
+                E = io.db_get_sp_prop(smiles, 'ene', None, self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2]
+                                                          ,self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2])
                 if E == None:
-                    print('\nNo energy found at ' + io.db_sp_path(self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2], None, smiles,self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2])
-                           + smiles + '.ene\n')
+                    print('\nNo energy found at ' + io.db_sp_path(self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2]                                                                                                , None, smiles,self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2]) + smiles + '.ene')
+            else:
+                E = '0'
                 optim += '\n\t' + E 
             io.write_file(optim, '../output/' + self.typemol + str(n) + '_opt.out')
         elif '1' in self.xyzstart:
@@ -221,7 +232,7 @@ class MOL:
             for meas in measure:
                 optim += '\n\t' + meas[1]                
             for i in range(len(angles)):
-                optim += '\n\t60'             
+                optim += '\n\t{}'.format(deletedangles[i])              
             io.write_file(optim, '../output/' + self.typemol + str(n) + '_opt.out')
 
         return zmatstring
@@ -293,7 +304,6 @@ def build_theory(meths,nTS):
     allint = 'int=ultrafine nosym '
 
     for meth in meths:
-
         if 'molpro' in meth[1]:
 
             theory += meth[0] + ' ' + meth[1] + '\n\n'
