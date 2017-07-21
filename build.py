@@ -10,7 +10,7 @@ import obtools as ob
 
 class MOL:
     def __init__(self,opts,typemol = 'reac'):
-       
+         
         self.convert    = io.get_path('/home/elliott/Packages/TorsScan/test_chem') 
         self.typemol    = typemol
         #OPTIONS##############################
@@ -20,13 +20,14 @@ class MOL:
         self.XYZ        = opts[3]    #if QTC provides XYZ, 'true' (smiles.xyz), logfile 'anything.log', or just use smiles 'false'
         self.xyzstart   = opts[4]
         self.MDTAU      = opts[5]
-        
         ######################################
+        self.ijk        = [0, 0, 0]
+        self.sort       = None
 
     def build_cart(self,smiles):
         """
         Uses QTC interface by Murat Keceli to Openbabel to generate cartesian coorinate file based 
-        on SMILE string
+        on SMILES string
         """
         mol         = ob.get_mol(smiles)
         lines       =  ob.get_xyz(mol).split('\n')
@@ -53,6 +54,40 @@ class MOL:
             measure[i] = measure[i].upper().split('= ')
         return atoms, measure
 
+    def read_cart(self, smiles):
+        if io.check_file('../' + smiles + '.xyz'):                
+            cartlines = io.read_file('../' + smiles + '.xyz').split('\n\n')[1]
+            cartlines = 'Geometry ' + str(len(cartlines.split('\n'))-1) + ' Angstrom\n' + cartlines
+            io.write_file(cartlines,smiles + '.xyz')
+        elif io.check_file('../' + smiles + '.geo'):
+            cartlines = io.read_file('../' + smiles + '.geo')
+            cartlines = 'Geometry ' + str(len(cartlines.split('\n'))-1) + ' Angstrom\n' + cartlines
+            io.write_file(cartlines,smiles + '.xyz')
+        else:
+            print('ERROR: no .geo or .xyz provided')
+            print('...Using openbabel instead')
+            self.build_cart(smiles)
+            return 
+        #Find if i,j,k site is specified:
+        cartlines = cartlines.split('\n')
+        for i,line in enumerate(cartlines[1:], start=1):
+            if len(line.split()) > 4:
+                cartlines[i] = '   '.join(line.split()[1:])
+                if line.split()[0] == '1':
+                    self.ijk[1] = str(i)
+                elif line.split()[0] == '2':
+                    self.ijk[0] = str(i)
+                elif line.split()[0] == '3':
+                    self.ijk[2] = str(i)
+                elif line.split()[0] == '4':
+                    temp = cartlines[0]
+                    cartlines[0] = cartlines[i]
+                    del cartlines[i]
+                    cartlines.insert(0,temp)
+        cartlines = '\n'.join(cartlines)
+        io.write_file(cartlines,smiles + '.xyz')
+        return 
+
     def cart2zmat(self,smiles): 
         """
         Runs test_chem by Yuri Georgievski on a file of Cartesian coordinates and collects
@@ -70,34 +105,28 @@ class MOL:
         elif '.log' in self.XYZ.lower():
             cartlines = io.read_file('../' + self.XYZ)
             io.write_file(pa.gaussian_xyz_foresk(cartlines),smiles + '.xyz')
+        elif len(self.XYZ.split('/') ) < 2:
+            cartlines = self.read_cart(smiles)
+        elif len(self.XYZ.split('/')) > 2:  
+            if io.check_file(io.db_opt_path(self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2], None, smiles) + '/' + smiles + '.geo'):
+                cartlines = io.db_get_opt_prop(smiles, 'geo', None, self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2])
+                cartlines = 'Geometry ' + str(len(cartlines.split('\n'))-1) + ' Angstrom\n' + cartlines
+                io.write_file(cartlines,smiles + '.xyz')
+            elif io.check_file(io.db_opt_path(self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2], None, smiles) + '/' + smiles + '.xyz'):
+                cartlines = io.db_get_opt_prop(smiles, 'xyz', None, self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2]).split('\n\n')[1]
+                cartlines = 'Geometry ' + str(len(cartlines.split('\n'))-1) + ' Angstrom\n' + cartlines
+                io.write_file(cartlines,smiles + '.xyz')
+            else:
+                print ('\nERROR: No geometry found at ' + io.db_opt_path(self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2], None, smiles)
+                               + smiles + '.xyz' + '\n...building using OpenBabel instead')
+                self.build_cart(smiles)
         else:
-            if io.check_file('../' + smiles + '.xyz'):
-                cartlines = io.read_file('../' + smiles + '.xyz').split('\n\n')[1]
-                cartlines = 'Geometry ' + str(len(cartlines.split('\n'))-1) + ' Angstrom\n' + cartlines
-                io.write_file(cartlines,smiles + '.xyz')
-            elif io.check_file('../' + smiles + '.geo'):
-                cartlines = io.read_file('../' + smiles + '.geo')
-                cartlines = 'Geometry ' + str(len(cartlines.split('\n'))-1) + ' Angstrom\n' + cartlines
-                io.write_file(cartlines,smiles + '.xyz')
-            elif len(self.XYZ.split('/')) > 2:  
-                if io.check_file(io.db_opt_path(self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2], None, smiles) + '/' + smiles + '.geo'):
-                    cartlines = io.db_get_opt_prop(smiles, 'geo', None, self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2])
-                    cartlines = 'Geometry ' + str(len(cartlines.split('\n'))-1) + ' Angstrom\n' + cartlines
-                    io.write_file(cartlines,smiles + '.xyz')
-                elif io.check_file(io.db_opt_path(self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2], None, smiles) + '/' + smiles + '.xyz'):
-                    cartlines = io.db_get_opt_prop(smiles, 'xyz', None, self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2]).split('\n\n')[1]
-                    cartlines = 'Geometry ' + str(len(cartlines.split('\n'))-1) + ' Angstrom\n' + cartlines
-                    io.write_file(cartlines,smiles + '.xyz')
-                else:
-                    print ('\nERROR: No geometry found at ' + io.db_opt_path(self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2], None, smiles)
-                                   + smiles + '.xyz' + '\n...building using OpenBabel instead')
-                    self.build_cart(smiles)
-                
+            print('\nERROR: You have not specified a valid way to get the coordinates.  Use false, true, smiles.log, smiles.geo, smiles.xyz, or prog/method/basis')
         mol         = ob.get_mol(smiles)
         self.charge = ob.get_charge(mol)
         self.mult   = ob.get_multiplicity(mol)
         self.stoich = ob.get_formula(mol)
-        #Peform Test_Chem#########################3
+        #Peform Test_Chem#########################
         tempfile = 'temp'
         cart     = os.getcwd() + '/' +  smiles.replace('[','\[').replace(']','\]') + '.xyz'
         cart     = cart.replace('(','\(').replace(')','\)')  
@@ -116,6 +145,10 @@ class MOL:
 
         #Get relevant data from Test_Chem output file########
         props,lines = io.read_file(tempfile).split('Z-Matrix:\n')
+        props,order = props.split('Z-matrix atom order:')
+        self.sort = []
+        for index in order.split('\n')[1:-2]:
+            self.sort.append(index.split('>')[1])
         io.rm(tempfile)
         lines = lines.split('\n')
         for i,line in enumerate(lines):
@@ -175,8 +208,14 @@ class MOL:
             if n == 'ts':
                 #i,j,k sites###########################
                 zmatstring += '\nisite jsite ksite\n'
-                lines = io.read_file('../rmg.dat')
-                zmatstring += ' '.join(get_sites.sites(lines))
+                if self.ijk[0] != 0:
+                    zmatstring += ' '.join(self.ijk)
+                else:
+                    lines = io.read_file('../rmg.dat')
+                    zmatstring += ' '.join(get_sites.sites(lines))
+                if self.sort:
+                    for i in range(3):
+                        self.ijk[i] = str(int(self.sort[int(self.ijk[i])-1])+1)
                 zmatstring += '\n\nrmin rmax nr\n 1.0 2.5 8\n  -->aabs1,babs1,aabs2,babs2,babs3\n 90., 180., 90., 175., 90.\n'
 
     
@@ -237,7 +276,7 @@ class MOL:
 
         return zmatstring
 
-def build_molpro(meth,freqcalc):
+def build_molpro(meth,freqcalc,opt):
     """
     Builds molpro theory file 
     """
@@ -254,10 +293,11 @@ def build_molpro(meth,freqcalc):
         molstr += 'hf\ndft'
     else:
         molstr += 'hf\n' + method.lower()
-    molstr += '\noptg\n'
-    if freqcalc == 'on':
-        molstr += 'frequencies,symm=auto,numerical\n'
-    molstr += 'ENERGY=energy\n\n'
+    if opt:
+        molstr += '\noptg'
+    if freqcalc:
+        molstr += '\nfrequencies,symm=auto,numerical'
+    molstr += '\nENERGY=energy\n\n'
     molstr += 'CBSen=energy\n\n'
     molstr += '! these lines must be always included in molpro input\n'
     molstr += '! CBSen should be defined as desired\n'
@@ -271,10 +311,11 @@ def build_molpro(meth,freqcalc):
         molstr += 'rhf\n' + 'u' + method.lower()
     else:
         molstr += 'uhf\n' + method.lower()
-    molstr += '\noptg\n'
-    if freqcalc == 'on':
-        molstr += 'frequencies,symm=auto,numerical\n'
-    molstr += 'ENERGY=energy\n\n'
+    if opt:
+        molstr += '\noptg'
+    if freqcalc:
+        molstr += '\nfrequencies,symm=auto,numerical'
+    molstr += '\nENERGY=energy\n\n'
     molstr += 'CBSen=energy\n\n'
     molstr += '! these lines must be always included in molpro input\n'
     molstr += '! CBSen should be defined as desired\n'
@@ -308,14 +349,17 @@ def build_theory(meths,nTS):
 
             theory += meth[0] + ' ' + meth[1] + '\n\n'
             if meth[0] == 'level1':
-                freqcalc = 'on'
+                freqcalc = True
             else:
-                freqcalc = 'off'
-            molpro  = build_molpro(meth,freqcalc)
+                freqcalc = False
+            if meth[0] == 'hlevel':
+                opt = False
+            else:
+                opt = True
+            molpro  = build_molpro(meth,freqcalc, opt)
             io.write_file(molpro[0], molpro[1])
 
         elif  'g09' in meth[1]:   
-
             theory += meth[0] + ' ' + meth[1] + '\n '
             theory += meth[2] + rpopt + allint
             if meth[0] == 'level1':
@@ -375,34 +419,37 @@ def build_estoktp(params, jobs, nreacs, nprods, nTS):
     eststring +='\n Debug  2\n'
  
     for job in jobs:
-        for n in range(nreacs):
-            if 'Opt_1' in job:
-                eststring += '\n ' + job.rstrip('_1') + '_Reac' + str(n+1) + '_1'
-            else:
-                eststring += '\n ' + job + '_Reac' + str(n+1)
- 
-        for n in range(nprods):
-            if 'Opt_1' in job:
-                eststring += '\n ' + job.rstrip('_1') + '_Prod' + str(n+1) + '_1'
-            else:
-                eststring += '\n ' +job + '_Prod' + str(n+1)
- 
-        for n in range(nTS):
-            if 'Opt_1' in job:
-                eststring += '\n ' + job.rstrip('_1') + '_' + Tstype[n]  + '_1'
-            elif 'Tau' in job:
-                if n < 1:
-                    eststring += '\n ' +job + '_' + Tstype[n] 
-            elif 'Opt' in job and n <1:
-                eststring += '\n Grid_' + job + '_' + Tstype[n]
-                eststring += '\n ' + job + '_' + Tstype[n] + '_0'
-                if 'nOpt' in job:
-                    eststring += '\n nTauo_' + Tstype[n]
+        if 'kTP' in job or 'irc' in job.lower():
+            eststring += job
+        else:
+            for n in range(nreacs):
+                if 'Opt_1' in job:
+                    eststring += '\n ' + job.rstrip('_1') + '_Reac' + str(n+1) + '_1'
                 else:
-                    eststring += '\n Tauo_' + Tstype[n]
-            elif 'Opt' not in job:
-                eststring += '\n ' + job + '_' + Tstype[n]
-                
+                    eststring += '\n ' + job + '_Reac' + str(n+1)
+ 
+            for n in range(nprods):
+                if 'Opt_1' in job:
+                    eststring += '\n ' + job.rstrip('_1') + '_Prod' + str(n+1) + '_1'
+                else:
+                    eststring += '\n ' +job + '_Prod' + str(n+1)
+ 
+            for n in range(nTS):
+                if 'Opt_1' in job:
+                    eststring += '\n ' + job.rstrip('_1') + '_' + Tstype[n]  + '_1'
+                elif 'Tau' in job:
+                    if n < 1:
+                        eststring += '\n ' +job + '_' + Tstype[n] 
+                elif 'Opt' in job and n <1:
+                    eststring += '\n Grid_' + job + '_' + Tstype[n]
+                    eststring += '\n ' + job + '_' + Tstype[n] + '_0'
+                    if 'nOpt' in job:
+                        eststring += '\n nTauo_' + Tstype[n]
+                    else:
+                        eststring += '\n Tauo_' + Tstype[n]
+                elif 'Opt' not in job:
+                    eststring += '\n ' + job + '_' + Tstype[n]
+                    
         eststring += '\n'
  
     eststring += '\nEnd'
@@ -468,14 +515,14 @@ def find_period(zmat,hin):
     else:
         return sym1 * sym2
 
-def tau_hind_str(atoms, angles, interval, nsteps, MDTAU):
+def tau_hind_str(atoms, angles, interval, nsteps, mdtau):
     #TAU
     string  = '\nntau number of sampled coordinates\n'
     string += str(len(angles)) + '\n'
     string += ' -->nametau, taumin, taumax\n'
     for angle in angles:
         periodicity = find_period(atoms, angle)
-        string += angle + ' 0 ' + str(int(interval)/periodicity) + '\n'
+        string += angle + ' 0 ' + interval + '\n'
 
     #1 and 2D HIND
     string += '\nnhind\n'
@@ -483,14 +530,15 @@ def tau_hind_str(atoms, angles, interval, nsteps, MDTAU):
     string += ' -->namehind,hindmin,hindmax,nhindsteps,period\n'
     for hin in angles:
         periodicity = find_period(atoms, hin)
-        string += hin + ' 0 ' + str(int(interval)/periodicity) + ' ' + nsteps + ' ' + str(periodicity)  + '\n'   
+        string += hin + ' 0 ' + str(float(interval)/periodicity)  + ' ' + str(int(round(float(nsteps)/periodicity))) + ' ' + str(periodicity)  + '\n'   
 
-    if MDTAU:
-        string += '\nnhind2D\n'
-        string += str(len(angles)/2) + '\n'
+    if mdtau:
+        mdtau   = mdtau.strip('D').strip('d')
+        string += '\nnhind' + mdtau + 'D\n'
+        string += '1\n'
         string += ' -->namehind,hindmin,hindmax,nhindsteps,period\n'
-        for hin in angles:
-            periodicity = find_period(atoms, hin)
-            string += hin + ' 0 ' + str(int(interval)/periodicity) + ' ' + nsteps + ' ' + str(periodicity)  + '\n'   
+        for i in range(int(mdtau)):
+            periodicity = find_period(atoms, angles[i])
+            string += angles[i] + ' 0 ' + str(float(interval)/periodicity) + ' ' + str(int(round(float(nsteps)/periodicity))) + ' ' + str(periodicity)  + '\n'   
     return string
 
