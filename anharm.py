@@ -165,10 +165,14 @@ def run_gauss(filename,node):
     node     - node to run it on
     """
     if io.check_file(filename):
-        execute = 'cd `pwd`; export PATH=$PATH:~/bin; soft add +gcc-5.3; soft add +g09; g09 ' + filename 
+        executea = 'soft add +gcc-5.3; soft add +g09; g09 ' + filename 
+        executeb = 'cd `pwd`; export PATH=$PATH:~/bin; i'
         ssh ='/usr/bin/ssh'
         host =node
-        os.system('exec ' + ssh + ' -n ' + host +' \"' + execute + '\"')
+        if str(host) == '0':
+            os.system(executea)
+        else: 
+            os.system('exec ' + ssh + ' -n ' + host +' \"' + executea + executeb + '\"')
     
     return
 
