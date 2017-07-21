@@ -7,14 +7,15 @@ Parse all: True
 ============
 Manual species input
 ============
-Reaction type:  
 Reactant list (SMILES): C
 Product  list (SMILES): 
+Reaction type:  
+No. of transition states: 0
 
-============
-QTC options 
-============
-Use QTC xyz : False
+==============
+Geometry options 
+===============
+Use QTC xyz: False
             (True  - qtc provides nicely  printed optimized  geometry,  
              False - make openbabel xyz from smiles
              prog/method/basis - use xyz stored in directory (recommended)
@@ -25,7 +26,7 @@ Use xyz as (start-starting geometry, 0-level0 geometry): start
 ==============
 BLUES options   
 ==============
-Run on node (0 if on login OR sshed on node, d to debug): debug
+Run on node (0 if on login OR ssh-ed on node, d to debug): debug
 No. of cores high: 12
 No. of cores  low:  6
 
@@ -34,20 +35,21 @@ No. of cores  low:  6
 EStoKTP options
 ================
 No. MC  sampling points: 5
-No. of transition state: 0
 Scan interval (degrees): 360
 No. of steps on the PES: 4
+Multidim scan (2 or 3D): 2
 
 ------------------------------------------------ 
    Module      :    Program    :      Theory
 ------------------------------------------------
-Opt            :      g09      : b3lyp/6-31* 
+Opt            :      g09      : b3lyp/6-31g* 
 Opt_1          :      g09      : m062x/6-311+g(d,p)
 1dTau          :      g09      : m062x/6-311+g(d,p)
 MdTau          :               :
-Symm           :               :
 HL             :               :
+Symm           :               :
 Irc            :               :
+kTP            :               :
 ------------------------------------------------
 
 =============
