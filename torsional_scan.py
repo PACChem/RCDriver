@@ -27,6 +27,7 @@ class ES:
         #for theory.dat
         self.meths   =   args.meths
         self.mdtype  =   args.mdtype
+        self.optoptions=  args.optoptions
         #for estoktp.at
         self.jobs    =   args.jobs
         self.nsamps  =   args.nsamps   
@@ -35,7 +36,7 @@ class ES:
         self.node    =   args.node     
         self.coresh  =   args.coresh   
         self.coresl  =   args.coresl   
-   
+        self.symnums =   [] 
    
     def build_subdirs(self):
         
@@ -61,8 +62,8 @@ class ES:
         stoich = []
 
         #Create Read, Prod, and TS objects from parameters
-        if not 'MdTau' in self.jobs:
-            self.mdtype = None
+        if not 'MdTau' in self.jobs and self.mdtype.lower() != 'auto':
+            self.mdtype = ''
         params = (self.nsamps, self.interval,self.nsteps,self.XYZ,self.xyzstart,self.mdtype)
         Reac = build.MOL(params,'reac')
         Prod = build.MOL(params,'prod')
@@ -74,12 +75,11 @@ class ES:
         
         #These keys will later replace generated reac file if there is a TS search
         if 'abstraction' in self.reactype.lower():
-            key = ['[CH3]','[O]','[O][O]','O[O]','[OH]','[H]']
+            key = ['[CH3]','[O]','[O][O]','O[O]','[OH]','[H]','O=O']
         elif  'addition' in self.reactype.lower():
             key = ['[O][O]']
         else: 
             key = []
-
         i,j,k = 0,0,0
         TScharge, TSspin = 0, 0
 
@@ -87,6 +87,8 @@ class ES:
         for i, reac in enumerate(reacs,start=1):
             print('Task: Building reac' + str(i) + '.dat...')
             atoms, measure, angles = Reac.cart2zmat(reac)
+            if self.mdtype.lower() == 'auto':
+                Reac.MDTAU, self.jobs = prepare_mdtau(len(angles), self.jobs)
             zmatstring = Reac.build(i, reac, angles, atoms,  measure)
             zmat = Reac.typemol +str(i) + '.dat'
             io.write_file(zmatstring, zmat)
@@ -102,16 +104,20 @@ class ES:
                     shutil.copyfile('/home/elliott/Packages/TorsScan/abstractors/' + reac + '.dat','reac2.dat')
                     
             stoich.append(Reac.stoich)
+            self.symnums.append(Reac.symnum)
             print('completed')
 
         #Build prodn.dat
         for j, prod in enumerate(prods,start=1):
             print('Task: Building prod' + str(j) + '.dat...')
             atoms, measure, angles = Prod.cart2zmat(prod)
+            if self.mdtype.lower() == 'auto':
+                Prod.MDTAU, self.jobs = prepare_mdtau(len(angles), self.jobs)
             zmatstring = Prod.build(j, prod, angles, atoms, measure)
             zmat = Prod.typemol +str(j) + '.dat'
             io.write_file(zmatstring, zmat)
             stoich.append(Prod.stoich)
+            self.symnums.append(Prod.symnum)
             print('completed')
         
         #Build TS, wellr, and wellp.dat
@@ -137,24 +143,15 @@ class ES:
 
         self.stoich = stoich[0]
         self.mol    =   reac[0]
-        
         #Builds theory.dat
         print('Task: Building theory.dat...')
-        theostring = build.build_theory(self.meths,self.nTS)
+        theostring = build.build_theory(self.meths,self.nTS,self.optoptions)
         io.write_file(theostring, 'theory.dat')
         print('completed')
 
-        #Builds estoktop.dat to restart at any step
+        #Builds estoktp.dat to restart at any step
         print('Task: Building estoktp.dat...')
-        for l,job in enumerate(self.jobs):
-            if job == 'Opt'   and self.restart > 0:
-                self.jobs[l]  = 'n' + job
-            if job == 'Opt_1' and self.restart > 1:
-                self.jobs[l]  = 'n' + job
-            if job == '1dTau' and self.restart > 2:
-                self.jobs[l]  = 'n' + job
-            if job == 'MdTau' and self.restart > 3:
-                self.jobs[l]  = 'n' + job
+        self.jobs = update_jobs(self.jobs, self.restart)
         params    = (self.stoich, self.reactype, self.coresh,self.coresl,self)
         eststring = build.build_estoktp(params,self.jobs,i,j,self.nTS)
         io.write_file(eststring, 'estoktp.dat')
@@ -163,7 +160,8 @@ class ES:
         os.chdir('..')
 
         return
-  
+ 
+
     def execute(self):
         """
         Runs EStokTP on a given blues node (default debug)
@@ -174,7 +172,7 @@ class ES:
         print('Task: Submitting EStokTP job...')
         if self.node == '0':
            # os.system('soft add +g09; soft add +gcc-5.3; /home/elliott/Packages/EStokTP/exe/estoktp.x >& estoktp.log')
-            os.system('soft add +g09; soft add +gcc-5.3; /lcrc/project/PACC/codes/EStokTP/exe/estoktp.x >& estoktp.log')
+            os.system('soft add +g09-e.01; soft add +gcc-5.3; /lcrc/project/PACC/codes/EStokTP/exe/estoktp.x >& estoktp.log')
         elif self.node == 'd' or self.node == 'debug':
             print('task skipped')
             return
@@ -200,8 +198,12 @@ class THERMO:
         self.node     = args.node
         self.meths    = args.meths
         self.hfbasis  = args.hfbasis
-        self.optlevel = args.optlevel
+        self.hlen     = args.hlen
+        self.enlevel  = args.enlevel.replace('g09','gaussian')
+        self.optlevel = args.optlevel.replace('g09','gaussian')
         self.taulevel = args.taulevel
+        self.qtchf    = args.qtchf
+        self.symnums  = args.symnums
 
     def build(self):
         """
@@ -214,7 +216,8 @@ class THERMO:
         anovrwrt = self.anovrwrt
         node     = self.node
         meths    = self.meths
-        
+        symnums  = self.symnums
+ 
         if not self.taulevel:
             self.taulevel = self.optlevel
         optprog, optmethod, optbasis = self.optlevel.split('/')
@@ -239,6 +242,7 @@ class THERMO:
             ge = self.extract_mess('reac' + str(n+1) + '_1dge.me')                      #Copy EStokTP geometry
             if 'Species' in ge:
                 ge = " Species " + reac.strip() +  ge.split("Species")[1]
+
             elif 'Fragment' in ge:
                 ge = " Species " + reac.strip() +  ge.split("Fragment")[1]
             if 'Core' in ge:
@@ -251,6 +255,11 @@ class THERMO:
             elif 'ge' != '':
                 hr = hr.split('Quantum')
                 hr = hr[0].rstrip() + '\n    Quantum'  + hr[1].lstrip()
+            if len(symnums) > n:
+                symnum = symnums[n]
+            else:
+                symnum = 1
+            ge = ge.replace('SymmetryFactor    1.0000000000000','SymmetryFactor     ' + str(symnum) + '.0')
             if anharm.lower() == 'false':
                 fr = self.extract_mess('reac' + str(n+1) + '_fr.me')                 #Copy EStokTP projfrequencies
                 fr = fr.split('End')[0] + 'End  '
@@ -306,6 +315,11 @@ class THERMO:
             else:
                 hr = hr.split('Quantum')
                 hr = hr[0].rstrip() + '\n    Quantum'  + hr[1].lstrip()
+            if len(symnums) > n+len(reacs):
+                symnum = symnums[n+len(reacs)]
+            else:
+                symnum = 1
+            ge = ge.replace('SymmetryFactor    1.0000000000000','SymmetryFactor     ' + str(symnum) + '.0')
             if anharm.lower() == 'false':
                 fr = self.extract_mess('prod' + str(n+1) + '_fr.me')                 #Copy EStokTP projfrequencies
                 fr = fr.split('End')[0] + 'End  '
@@ -395,7 +409,7 @@ class THERMO:
 
     def run(self):
         """
-        Runs partition_function, 
+        Runs heatform, partition_function, thermp, pac99, and write chemkin file
         """
         import shutil
         import heatform as hf
@@ -408,6 +422,9 @@ class THERMO:
         node     = self.node
         meths    = self.meths
         hfbasis  = self.hfbasis
+        qtchf    = self.qtchf
+        enlevel  = self.enlevel
+        hlen     = self.hlen
         self.hfbases = []
         speciess,speclist = self.build()
         self.dH0   = []
@@ -416,23 +433,33 @@ class THERMO:
         if anharm.lower() != 'false':
             anharmbool = True
         for i,species in enumerate(speciess):
-            logfile = 'geoms/'+speclist[i] + '_l1.log'
-            if speclist[i] ==  'ts':
-                logfile = 'geoms/'+speclist[i] + 'gta_l1.log'
-            if io.check_file(logfile):
-                lines = io.read_file(logfile)
-                energy=pa.energy(lines)[1]
-                print '{}-    E: {:5g} pulled from: {}'.format(species, energy, logfile)
-                zpve  = pa.zpve(lines)
-                if io.check_file('me_files/'+speclist[i] + '_zpe.me'):
-                    zpve = float(io.read_file('me_files/'+speclist[i] + '_zpe.me'))
-                    print '{}- ZPVE: {:5g} pulled from: {}'.format(species, zpve, 'me_files/'+speclist[i] + '_zpe.me')
-                if zpve:
-                    energy = energy + zpve
-                deltaH, hfbasis = hf.main(species,logfile,E=energy,basis=self.hfbasis,anharm=anharmbool)
+            if len(qtchf) >= i and qtchf[i].lower() not in ['false', 'auto']:
+                deltaH = float(qtchf[i])
+                hfbasis = ['N/A']
                 self.hfbases.append(hfbasis)
             else:
-                deltaH = 0.00
+                logfile = 'geoms/'+speclist[i] + '_l1.log'
+                if speclist[i] ==  'ts':
+                    logfile = 'geoms/'+speclist[i] + 'gta_l1.log'
+                if io.check_file(logfile):
+                    lines = io.read_file(logfile)
+                    energy=pa.energy(lines)[1]
+                    zpve  = pa.zpve(lines)
+                    printE = '{}-    E: {:5g} pulled from: {}'.format(species, energy, logfile)
+                    printzpve = '{}- zpve: {:5g} pulled from: {}'.format(species, zpve, logfile)
+                    if enlevel != 'optlevel':
+                        energy = hlen[i]
+                        printE = '{}-    E: {:5g} pulled from: {}'.format(species, energy, 'me_files/'+speclist[i] + '_en.me')
+                    if io.check_file('me_files/'+speclist[i] + '_zpe.me'):
+                        zpve = float(io.read_file('me_files/'+speclist[i] + '_zpe.me'))
+                        printzpve = '{}- ZPVE: {:5g} pulled from: {}'.format(species, zpve, 'me_files/'+speclist[i] + '_zpe.me')
+                    if zpve:
+                        energy = energy + zpve
+                    print printE + '\n' +  printzpve
+                    deltaH, hfbasis = hf.main(species,logfile,E=energy,basis=self.hfbasis,anharm=anharmbool,enlevel=enlevel)
+                    self.hfbases.append(hfbasis)
+                else:
+                    deltaH = 0.00
             self.dH0.append(deltaH)
             if not speclist[i] == 'ts':
                 print('Task: Running mess')
@@ -457,7 +484,7 @@ class THERMO:
                 tc.run_pac99(species,'/home/elliott/Packages/therm/pac99.x')
                 print('Converting to chemkin format.\n')
                 chemkinfile = species + '.ckin'
-                print('Writing chemking file {0}.\n'.format(chemkinfile))
+                print('Writing chemkin file {0}.\n'.format(chemkinfile))
                 method = meths[-1][2]
                 tc.write_chemkin_file(deltaH, method, species, chemkinfile)
 
@@ -487,8 +514,9 @@ class ARGS:
         self.XYZ      = 'False' #Optimized XYZ provided
         self.xyzstart = 'start' #Optimized XYZ provided
         self.node     = 'debug' #Default node to run on in is debug (won't run)
-        self.coresh   = '10'    #Default high number of cores is 10
-        self.coresl   = '6'     #Default low number of cores is 10
+        self.coresh   = '16'    #Default high number of cores is 10
+        self.coresl   = '10'     #Default low number of cores is 10
+        self.optoptions   = 'internal'     #Default low number of cores is 10
         self.nsamps   = '5'     #Number of MC sampling points
         self.interval = 360     #Interval to scan
         self.nsteps   = '4'     #Number of steps on PES
@@ -498,6 +526,7 @@ class ARGS:
         self.anharm   = 'false' #Use and/or run anharmonic xmat computation
         self.anovrwrt = 'true' #Use and/or run anharmonic xmat computation
         self.alltherm = 'true' #Run all the thermochemistry scrips?
+        self.qtchf    = 'false'#Enter precomputed heat of formation in a comma-seperated list
         self.hfbasis  = 'auto' #Specify basis for heat of formation?
         self.parseall = 'true' #Specify basis for heat of formation?
         ###########################################
@@ -540,7 +569,7 @@ class ARGS:
     def get_options(self,optionfile):
         """
         Gets options from the input file
-        """
+        """ 
         options = io.read_file(optionfile)
     
         self.get_theory_params(options)
@@ -559,6 +588,7 @@ class ARGS:
         self.XYZ     = get_param(self.XYZ     , 'Use QTC'      , options)
         self.xyzstart= get_param(self.xyzstart, 'Use xyz as'   , options)
 
+        self.optoptions  = get_param(self.optoptions  , 'Gaussian optim'     , options)
         self.nsamps  = get_param(self.nsamps  , 'sampling'     , options)
         self.interval= get_param(self.interval, 'interval'     , options)
         self.nsteps  = get_param(self.nsteps  , 'steps'        , options)
@@ -569,6 +599,7 @@ class ARGS:
         self.anharm  = get_param(self.anharm  , 'Anharmonic'   , options)
         self.anovrwrt= get_param(self.anovrwrt, 'Overwrite an' , options)
         self.alltherm= get_param(self.alltherm, 'thermochemist', options)
+        self.qtchf   = get_param(self.qtchf   , 'heat of formation', options).replace(' ','').split(',')
         self.hfbasis = get_param(self.hfbasis , 'Basis for hea', options)
         self.parseall= get_param(self.parseall, 'Parse all'    , options)
 
@@ -631,6 +662,38 @@ class ARGS:
                         self.ts.append(tsdic[ts][0])
         return
 
+def update_jobs(jobs, restart):
+    """
+    Updates the job list based on restart level
+    """
+    for l,job in enumerate(jobs):
+        if job == 'Opt'   and restart > 0:
+            jobs[l]  = 'n' + job
+        if job == 'Opt_1' and restart > 1:
+            jobs[l]  = 'n' + job
+        if job == '1dTau' and restart > 2:
+            jobs[l]  = 'n' + job
+        if job == 'MdTau' and restart > 3:
+            jobs[l]  = 'n' + job
+    return jobs
+
+def prepare_mdtau(nrot, jobs):
+    """ 
+    Returns what mdtau should be set to based on the number of hindered rotors and 
+    inserts MdTau into the joblist if need be
+    """
+    mdtau = None
+    if nrot > 0  and '1dTau' in jobs:
+        mdtau = '1'
+        if nrot > 1:
+            mdtau = '2'
+            if nrot > 2:
+                mdtau = '3'
+        if 'MdTau' not in jobs:
+            index = jobs.index('1dTau')
+            jobs.insert(index+1, 'MdTau')
+    return mdtau, jobs
+
 def get_anharm(rorp,i,natom,node,anlevel,anovrwrt,species, optlevel):
     """
     Runs the anharm module to project out torsional modes from xmatrix and
@@ -684,16 +747,23 @@ def get_param(param,keyword,inputlines):
              return get_val(line,1)
      return param
  
-def parse(n, species, lines, optlevel,lines2):
+def parse(n, species, lines, optlevel,enlevel,hlen,lines2):
     """
     Parses and prints just the quantum chemistry output
     """
     printstr= '\n=====================\n          '+species+'\n=====================\n'
-    prog   =  pa.get_prog(lines) 
-    method =  pa.method(lines).lower().lstrip('r')
-    basis  =  pa.basisset(lines).lower() 
+    if enlevel == 'optlevel':
+        prog   =  pa.get_prog(lines) 
+        method =  pa.method(lines).lower().lstrip('r')
+        basis  =  pa.basisset(lines).lower()
+        energy = str(pa.energy(lines)[1]) 
+    else:
+        prog, method, basis = enlevel.split('/') 
+        if len(hlen) > n-1:
+            energy = str(hlen[n-1])
+        else:
+            energy = 'N/A'
     optprog, optmethod, optbasis = optlevel.split('/')
-    energy = str(pa.energy(lines)[1]) 
     zmat   =  pa.zmat(lines)   
     if prog == 'g09': 
         xyz    =  pa.gaussian_geo(lines) 
@@ -724,16 +794,39 @@ def parse(n, species, lines, optlevel,lines2):
         printstr += '\nProjected Frequencies   (cm-1):\t'  + pfreqs
     return printstr
 
-def parse_all(n, species, lines, anharm,anfreqs,anxmat,deltaH0,deltaH298,hfbasis,optlevel,lines2,taulevel):
+#def parse_qtc(species, jobs):
+#    if 'Opt' in jobs:
+#        if io.check_file('geoms/reac1_01.xyz'):
+#            lines = io.read_lines('goems/reac1_01.xyz')
+#            io.write_file(lines, species + '.xyz')
+#    if 'Opt_1' in jobs:
+#        if io.check_file('geoms/reac1_l1.xyz'):
+#            lines = io.read_lines('goems/reac1_l1.xyz')
+#            io.write_file(lines, species + '.xyz')
+#    if 'HL' in jobs:
+#        if io.check_file('geoms/reac1_l1.xyz'):
+#            lines = io.read_lines('goems/reac1_l1.xyz')
+#            io.write_file(lines, species + '.xyz')
+#    return
+      
+
+def parse_all(n, species, lines, anharm,anfreqs,anxmat,deltaH0,deltaH298,hfbasis,optlevel,enlevel,taulevel,hlen,lines2):
     """
     Parses, prints, and stores the quantum chemistry and thermochemistry output
     """
     printstr= '=====================\n          '+species+'\n=====================\n'
-    prog   =  pa.get_prog(lines) 
-    method =  pa.method(lines).lower().lstrip('r')
-    basis  =  pa.basisset(lines).lower() 
+    if enlevel == 'optlevel':
+        prog   =  pa.get_prog(lines) 
+        method =  pa.method(lines).lower().lstrip('r')
+        basis  =  pa.basisset(lines).lower() 
+        energy = str(pa.energy(lines)[1]) 
+    else:
+        prog, method, basis = enlevel.split('/') 
+        if len(hlen) >= n+1:
+            energy = str(hlen[n])
+        else:
+            energy = 'N/A'
     optprog, optmethod, optbasis = optlevel.split('/')
-    energy = str(pa.energy(lines)[1]) 
     zmat   =  pa.zmat(lines)   
     if prog == 'g09': 
         xyz    =  pa.gaussian_geo(lines) 
@@ -797,7 +890,8 @@ def parse_all(n, species, lines, anharm,anfreqs,anxmat,deltaH0,deltaH298,hfbasis
     hf298k    = str(deltaH298[n-1])
     if not io.check_file(io.db_sp_path(prog, method, basis, None, species, optprog, optmethod, optbasis) + '/' + species + '.hf298k'):
         io.db_store_sp_prop('Energy (kcal)\tBasis\n----------------------------------\n',species,'hf298k',None,prog,method,basis, optprog, optmethod, optbasis)
-    io.db_append_sp_prop(hf298k + '\t' + ', '.join(hfbasis) + '\n', species, 'hf298k',None, prog,method,basis, optprog, optmethod, optbasis)
+    if len(hfbasis) >= n+1:
+        io.db_append_sp_prop(hf298k + '\t' + ', '.join(hfbasis[n]) + '\n', species, 'hf298k',None, prog,method,basis, optprog, optmethod, optbasis)
     printstr += 'Heat of formation(298K): ' + hf298k   + ' kcal /' + str(float(deltaH298[n-1])/.00038088/ 627.503) + ' kJ\n'
     return printstr
 
@@ -827,6 +921,13 @@ def ts_parse(n, lines):
         printstr += 'Cartesian coordinates (Angstrom):\n' + pa.xyz(lines) 
     printstr += '\nUnprojected Frequencies (cm-1):\t'  + freqs + '\n'
     return printstr 
+
+def printheader():
+    printstr  = '\n\n ______________________'
+    printstr += '\n||                    ||'
+    printstr += '\n||       OUTPUT       ||'
+    printstr += '\n||____________________||\n\n'
+    return printstr
 
 def random_cute_animal():
     import random 
@@ -908,10 +1009,26 @@ if __name__ == "__main__":
                 taulevel = '{}/{}'.format(meth[1], meth[2].split('/')[1])
     args.optlevel = optlevel
     args.taulevel = taulevel
+    args.enlevel  = 'optlevel'
+    args.hlen     = []
+    for i in range(len(args.reacs)):
+        if io.check_file('me_files/reac'+str(i+1) + '_en.me'):
+            args.hlen.append(float(io.read_file('me_files/reac'+str(i+1) + '_en.me')))
+            for meth in args.meths:
+                if 'hlevel' in meth:
+                    args.enlevel = '{}/{}'.format(meth[1],meth[2])
+    for i in range(len(args.prods)):
+        if io.check_file('me_files/prod'+str(i+1) + '_en.me'):
+            args.hlen.append(float(io.read_file('me_files/prod'+str(i+1) + '_en.me')))
+            for meth in args.meths:
+                if 'hlevel' in meth:
+                    args.enlevel = '{}/{}'.format(meth[1],meth[2])
+
 
     #Builds and runs the thermochemistry files
     if args.alltherm.lower() == 'true':
         import patools as pa
+        args.symnums = es.symnums
         thermo = THERMO(args)
         thermo.run()
         anfreqs = thermo.anfreqs
@@ -921,22 +1038,19 @@ if __name__ == "__main__":
   
         #HEY ME! move parsing outside of main
         if args.parseall.lower() == 'true':
-            printstr  = '\n\n ______________________'
-            printstr += '\n||                    ||'
-            printstr += '\n||       OUTPUT       ||'
-            printstr += '\n||____________________||\n\n'
+            printstr  = printheader()
             for i,reac in enumerate(args.reacs, start=1):
                 lines   = io.read_file('geoms/reac' + str(i) + '_l1.log')
                 lines2  = ''
                 if io.check_file('me_files/reac' +  str(i) + '_fr.me'):
                     lines2  = io.read_file('me_files/reac' +  str(i) + '_fr.me')
-                printstr += parse_all(i, reac, lines, args.anharm,anfreqs,anxmat,deltaH,delH298,thermo.hfbases[i-1],optlevel,lines2,taulevel)
+                printstr += parse_all(i, reac, lines, args.anharm,anfreqs,anxmat,deltaH,delH298,thermo.hfbases,optlevel,args.enlevel,taulevel,args.hlen,lines2)
             for j,prod in enumerate(args.prods, start=1):
                 lines = io.read_file('geoms/prod' + str(j) + '_l1.log')
                 lines2 = ''
                 if io.check_file('me_files/reac' +  str(j) + '_fr.me'):
                     lines2  = io.read_file('me_files/prod' +  str(j) + '_fr.me')
-                printstr += parse_all(i+j-1, prod, lines, args.anharm,anfreqs,anxmat,deltaH,delH298,thermo.hfbases[i+j-1],optlevel,lines2,taulevel)
+                printstr += parse_all(i+j-1, prod, lines, args.anharm,anfreqs,anxmat,deltaH,delH298,thermo.hfbases,optlevel,args.enlevel,taulevel,args.hlen,lines2)
             if args.nTS > 0:
                 lines = io.read_file('geoms/tsgta_l1.log')
                 printstr += ts_parse(0,lines)
@@ -947,22 +1061,22 @@ if __name__ == "__main__":
                         lines = io.read_file('geoms/wellp_l1.log')
                         printstr += ts_parse(2,lines)
             print printstr
+
     elif args.parseall.lower() == 'true':
         import patools as pa
-        printstr  = '\n\n ______________________'
-        printstr += '\n||                    ||'
-        printstr += '\n||       OUTPUT       ||'
-        printstr += '\n||____________________||\n\n'
+        printstr  = printheader()
         for i,reac in enumerate(args.reacs, start=1):
             lines   = io.read_file('geoms/reac' + str(i) + '_l1.log')
             lines2  = ''
             if io.check_file('me_files/reac' +  str(i) + '_fr.me'):
                 lines2  = io.read_file('me_files/reac' +  str(i) + '_fr.me')
-            printstr += parse(i, reac, lines, optlevel,lines2)
+            printstr += parse(i, reac, lines, optlevel,args.enlevel,args.hlen,lines2)
         for j,prod in enumerate(args.prods, start=1):
             lines = io.read_file('geoms/prod' + str(j) + '_l1.log')
             lines2 = ''
             if io.check_file('me_files/reac' +  str(j) + '_fr.me'):
                 lines2  = io.read_file('me_files/prod' +  str(j) + '_fr.me')
-            printstr += parse(i+j-1, prod, lines, optlevel,lines2)
+            printstr += parse(i+j-1, prod, lines, optlevel,args.enlevel,args.hlen,lines2)
         print printstr
+#    if args.parseall.lower() == 'qtc':
+#        parse_qtc(args.reacs[0],args.jobs)
