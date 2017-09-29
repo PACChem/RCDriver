@@ -101,6 +101,11 @@ class MOL:
         atoms   = []
         measure = []
         angles  = []
+       
+        if '_m' in smiles:
+            smiles, self.mult = smiles.split('_m')
+        else:
+            self.mult = ob.get_multiplicity(ob.get_mol(smiles))
 
         if self.XYZ.lower() == 'false':
             self.build_cart(smiles)
@@ -139,7 +144,6 @@ class MOL:
             print('\nERROR: You have not specified a valid way to get the coordinates.  Use false, true, smiles.log, smiles.geo, smiles.xyz, or prog/method/basis')
         mol         = ob.get_mol(smiles,make3D=True)
         self.charge = ob.get_charge(mol)
-        self.mult   = ob.get_multiplicity(mol)
         self.stoich = ob.get_formula(mol)
         #Peform Test_Chem#########################
         tempfile = 'temp'

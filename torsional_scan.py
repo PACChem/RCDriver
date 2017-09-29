@@ -28,7 +28,7 @@ class ES:
         self.meths   =   args.meths
         self.mdtype  =   args.mdtype
         self.optoptions=  args.optoptions
-        #for estoktp.at
+        #for estoktp.dat
         self.jobs    =   args.jobs
         self.nsamps  =   args.nsamps   
         self.interval=   args.interval 
@@ -87,6 +87,7 @@ class ES:
         for i, reac in enumerate(reacs,start=1):
             print('Task: Building reac' + str(i) + '.dat...')
             atoms, measure, angles = Reac.cart2zmat(reac)
+            self.reacs[i-1] = reac.split('_')[0]
             if self.mdtype.lower() == 'auto':
                 Reac.MDTAU, self.jobs = prepare_mdtau(len(angles), self.jobs)
             zmatstring = Reac.build(i, reac, angles, atoms,  measure)
@@ -111,6 +112,7 @@ class ES:
         for j, prod in enumerate(prods,start=1):
             print('Task: Building prod' + str(j) + '.dat...')
             atoms, measure, angles = Prod.cart2zmat(prod)
+            self.prods[j-1] = prod.split('_')[0]
             if self.mdtype.lower() == 'auto':
                 Prod.MDTAU, self.jobs = prepare_mdtau(len(angles), self.jobs)
             zmatstring = Prod.build(j, prod, angles, atoms, measure)
