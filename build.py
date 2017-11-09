@@ -527,25 +527,25 @@ def find_period(zmat,hin):
     atom1 = zmat[k][1]
     atom2 = zmat[k][3]
     for row in zmat[1:]:
-        if atom1 in row[1]:
+        if atom1 == row[1]:
             if 'h' in row[0]:
                 sym1 += 1
-            elif atom2 not in row[0]:
+            elif atom2 != row[0]:
                 sym1 -= 100
-        elif atom1 in row[0]:
+        elif atom1 == row[0]:
             if 'h' in row[1]:
                 sym1 += 1
-            elif atom2 not in row[1]:
+            elif atom2 != row[1]:
                 sym1 -= 100
-        elif atom2 in row[1]:
+        elif atom2 == row[1]:
             if 'h' in row[0]:
                 sym2 += 1
-            elif atom1 not in row[0]:
+            elif atom1 != row[0]:
                 sym2 -= 100
-        elif atom2 in row[0]:
+        elif atom2 == row[0]:
             if 'h' in row[1]:
                 sym2 += 1
-            elif atom1 not in row[1]:
+            elif atom1 != row[1]:
                 sym2 -= 100
     if sym1 <= 1 or sym2 <=1:
         period =  max(sym1, sym2)
