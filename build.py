@@ -101,6 +101,7 @@ class MOL:
         atoms   = []
         measure = []
         angles  = []
+        consts  = []
        
         if '_m' in smiles:
             smiles, self.mult = smiles.split('_m')
@@ -148,7 +149,7 @@ class MOL:
         #Peform Test_Chem#########################
         tempfile = 'temp'
         cart     = os.getcwd() + '/' +  smiles.replace('[','\[').replace(']','\]') + '.xyz'
-        cart     = cart.replace('(','\(').replace(')','\)') 
+        cart     = cart.replace('(','\(').replace(')','\)')
         os.system(self.convert + ' ' + cart + ' > ' + tempfile)
         if os.stat(tempfile).st_size < 80:
             print('Failed')
@@ -174,24 +175,67 @@ class MOL:
         for i,line in enumerate(lines):
             if line == '':
                 break
-            atoms.extend([line.rstrip('\n').split(',')])                     #Gets connectivity information
-
+            atoms.extend([line.rstrip('\n').replace(' ','').split(',')])                     #Gets connectivity information
         for j in range(i+1,len(lines)):
-            if 'Rot' in lines[j]:
+            if 'Const' in lines[j]:
                 break
             measure.extend(lines[j].replace('=',' ').rstrip('\n').split())   #Gets bond lengths, bond angles, and dihedral angles
 
         if lines[j].split(':')[1].rstrip('\n').strip() != '':
-            angles  = lines[j].split(':')[1].strip().split(',')              #Gets rotational angles to scan
+            consts  = lines[j].split(':')[1].strip().split()              #Gets rotational angles to scan
+        if lines[j+2].split(':')[1].rstrip('\n').strip() != '':
+            angles  = lines[j+2].replace(" ","").upper().split(':')[1].strip().split(',')              #Gets rotational angles to scan
 
         self.ilin =' 0'
         self.symnum = re.search("symmetry number = (\w+)", props).groups()[0]#Symmetry factor
         measure = np.array(measure)                     
+        if  (len(measure)%2 != 0):
+            measure = measure[:-1]
         measure = measure.reshape( len(measure)/2, 2)                        #Puts measurements into two columns
         for angle in measure:
             if 'R' in angle[0]:
                 angle[1] = str(float(angle[1]) * 0.529177)                   #bohr to angstrom
-        
+
+        #Put dummy atoms paramters inside zmat
+        for i, row in enumerate(atoms):
+            if 'X' in row[0]:
+                j=0
+                for meas in measure:
+                    if   meas[0] == row[2]:
+                        atoms[i][2] = '{:.6f}'.format(float(meas[1]))
+                        measure = np.delete(measure, j, axis=0)
+                        j-=1
+                    elif meas[0] == row[4]:
+                        atoms[i][4] = '{:.2f}'.format(float(meas[1]))
+                        measure = np.delete(measure, j, axis=0)
+                        j-=1
+                    elif len(row) > 5:
+                         if meas[0] == row[6]:
+                            atoms[i][6] = '{:.2f}'.format(float(meas[1]))
+                            measure = np.delete(measure, j, axis=0)
+                            j-=1
+                    j+=1
+        ##Put constant angles inside zmat 
+        for angle in consts:
+            for i, row in enumerate(atoms):
+                if len(row) > 5:
+                    if angle in row[6]:
+                        j=0
+                        for meas in measure:
+                            if  meas[0] == angle:
+                                atoms[i][6] = '{:.6f}'.format(float(meas[1]))
+                                measure = np.delete(measure, j, axis=0)
+                                j-=1
+                            j+=1
+                elif len(row) > 3:
+                    if angle in row[4]:
+                        j=0
+                        for meas in measure:
+                            if  meas[0] == angle:
+                                atoms[i][4] = '{:.6f}'.format(float(meas[1]))
+                                measure = np.delete(measure, j, axis=0)
+                                j-=1
+                            j+=1
         return atoms, measure, angles 
          
 
