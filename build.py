@@ -165,7 +165,7 @@ class MOL:
 
         #Get relevant data from Test_Chem output file########
         props,lines = io.read_file(tempfile).split('Z-Matrix:\n')
-        props,order = props.split('Z-matrix atom order:')
+        props,order = props.split('Z-Matrix atom order:')
 
         self.sort = []
         for index in order.split('\n')[1:-2]:
@@ -177,23 +177,26 @@ class MOL:
                 break
             atoms.extend([line.rstrip('\n').replace(' ','').split(',')])                     #Gets connectivity information
         for j in range(i+1,len(lines)):
-            if 'Const' in lines[j]:
+            if 'Const' in lines[j] or 'Rot' in lines[j] or 'Beta' in lines[j]:
                 break
             measure.extend(lines[j].replace('=',' ').rstrip('\n').split())   #Gets bond lengths, bond angles, and dihedral angles
 
-        if lines[j].split(':')[1].rstrip('\n').strip() != '':
+        if "Const" in lines[j] and lines[j].split(':')[1].rstrip('\n').strip() != '':
             consts  = lines[j].split(':')[1].strip().split()              #Gets rotational angles to scan
-        if lines[j+2].split(':')[1].rstrip('\n').strip() != '':
-            angles  = lines[j+2].replace(" ","").upper().split(':')[1].strip().split(',')              #Gets rotational angles to scan
-
+            if "Rot" in lines[j+2] and lines[j+2].split(':')[1].rstrip('\n').strip() != '':
+                angles  = lines[j+2].replace(" ","").upper().split(':')[1].strip().split(',')              #Gets rotational angles to scan
+        elif "Rot" in lines[j] and lines[j].split(':')[1].rstrip('\n').strip() != '':
+                angles  = lines[j].replace(" ","").upper().split(':')[1].strip().split(',')              #Gets rotational angles to scan
         self.ilin =' 0'
         self.symnum = re.search("symmetry number = (\w+)", props).groups()[0]#Symmetry factor
         measure = np.array(measure)                     
         if  (len(measure)%2 != 0):
             measure = measure[:-1]
         measure = measure.reshape( len(measure)/2, 2)                        #Puts measurements into two columns
+        print measure
         for angle in measure:
             if 'R' in angle[0]:
+                print angle
                 angle[1] = str(float(angle[1]) * 0.529177)                   #bohr to angstrom
 
         #Put dummy atoms paramters inside zmat
