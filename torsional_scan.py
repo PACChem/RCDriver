@@ -184,6 +184,33 @@ class ES:
         return
     
 
+    def check_geoms(self):
+        """
+        Checks MC geoms to make sure they are the same inchii as the starting species
+        """
+        n = 1
+        if int(self.nsamps) > 9:
+            n=2
+            if int(self.nsamps)> 99:
+                n=3
+        filename =  'geoms/reac1_' + '1'.zfill(n) + '.xyz'
+        coords = io.read_file(filename)
+        lowcoords = coords
+        mol = ob.get_mol(coords)
+        name =  ob.get_inchi_key(mol)
+        energy = float(coords.split('\n')[1])
+        for i in range(2, int(self.nsamps) + 1):
+            filename =  'geoms/reac1_' + '{}'.format(i).zfill(n) + '.xyz'
+            if io.check_file(filename):
+                coords = io.read_file(filename)
+                mol = ob.get_mol(coords)
+                if name ==  ob.get_inchi_key(mol):
+                    if float(coords.split('\n')[1]) < energy:
+                       energy = float(coords.split('\n')[1]) 
+                       lowcoords = coords
+        io.write_file("\n".join(lowcoords.split("\n")[2:]),'geom.xyz')
+        return 
+
 class THERMO:
     def __init__(self,args):
         """
@@ -996,6 +1023,8 @@ if __name__ == "__main__":
         es.build_subdirs()
         es.build_files()
         es.execute()
+        if ("Opt" in args.jobs or "nOpt" in args.jobs) and (not "Opt_1" in args.jobs or not "nOpt_1" in args.jobs):
+            es.check_geoms()
 
     #HEY ME! move this outside of main
     optlevel = ''

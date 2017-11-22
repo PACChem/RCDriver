@@ -24,16 +24,17 @@ class MOL:
         self.ijk        = [0, 0, 0]
         self.sort       = None
 
-    def build_cart(self,smiles):
+    def build_cart(self,smiles,mult):
         """
         Uses QTC interface by Murat Keceli to Openbabel to generate cartesian coorinate file based 
         on SMILES string
         """
+        filename    =  ob.get_smiles_filename(smiles) + '_m' + str(mult) + '.xyz'
         mol         =  ob.get_mol(smiles,make3D=True)
         lines       =  ob.get_xyz(mol).split('\n')
         #lines[0] = 'Geometry ' + lines[0] + ' Angstrom'
         #del lines[1]
-        io.write_file('\n'.join(lines), smiles + '.xyz')
+        io.write_file('\n'.join(lines), filename)
         return 
     
     def ob_zmat(self,smiles):
@@ -55,20 +56,21 @@ class MOL:
         return atoms, measure
 
     def read_cart(self, smiles):
-        if io.check_file('../' + smiles + '.xyz'):                
-            cartlines = io.read_file('../' + smiles + '.xyz').split('\n\n')[1]
+        smilesfilename = ob.get_smiles_filename(smiles)
+        if io.check_file('../' + smilesfilename + '.xyz'):                
+            cartlines = io.read_file('../' + smilesfilename + '.xyz').split('\n\n')[1]
             #cartlines = 'Geometry ' + str(len(cartlines.split('\n'))-1) + ' Angstrom\n' + cartlines
             cartlines =  str(len(cartlines.split('\n'))-1) + ' \n\n' + cartlines
-            io.write_file(cartlines,smiles + '.xyz')
-        elif io.check_file('../' + smiles + '.geo'):
-            cartlines = io.read_file('../' + smiles + '.geo')
+            io.write_file(cartlines,smilesfilename + '.xyz')
+        elif io.check_file('../' + smilesfilename + '.geo'):
+            cartlines = io.read_file('../' + smilesfilename + '.geo')
             #cartlines = 'Geometry ' + str(len(cartlines.split('\n'))-1) + ' Angstrom\n' + cartlines
             cartlines = str(len(cartlines.split('\n'))-1) + ' \n\n' + cartlines
-            io.write_file(cartlines,smiles + '.xyz')
+            io.write_file(cartlines,smilesfilename + '.xyz')
         else:
             print('ERROR: no .geo or .xyz provided')
             print('...Using openbabel instead')
-            self.build_cart(smiles)
+            self.build_cart(smiles, ob.get_multiplicity(mol))
             return 
         #Find if i,j,k site is specified:
         cartlines = cartlines.split('\n')
@@ -87,7 +89,7 @@ class MOL:
                     del cartlines[i]
                     cartlines.insert(0,temp)
         cartlines = '\n'.join(cartlines)
-        io.write_file(cartlines,smiles + '.xyz')
+        io.write_file(cartlines,smilesfilename + '.xyz')
         return 
 
     def cart2zmat(self,smiles): 
@@ -102,45 +104,45 @@ class MOL:
         measure = []
         angles  = []
         consts  = []
-       
+        smilesfilename = ob.get_smiles_filename(smiles) 
         if '_m' in smiles:
             smiles, self.mult = smiles.split('_m')
         else:
             self.mult = ob.get_multiplicity(ob.get_mol(smiles))
 
         if self.XYZ.lower() == 'false':
-            self.build_cart(smiles)
+            self.build_cart(smiles,self.mult)
 
         elif '.log' in self.XYZ.lower():
             cartlines = io.read_file('../' + self.XYZ)
-            io.write_file(pa.gaussian_xyz_foresk(cartlines),smiles + '.xyz')
+            io.write_file(pa.gaussian_xyz_foresk(cartlines),smilesfilename + '.xyz')
 
         elif '.xyz' in self.XYZ.lower():
             cartlines = io.read_file(self.XYZ)
             #cartlines = io.read_file(self.XYZ).split('\n')
             #cartlines = 'Geometry ' + cartlines[0] + ' Angstrom\n' + '\n'.join(cartlines[2:]) 
-            io.write_file(cartlines,smiles + '.xyz')
+            io.write_file(cartlines,smilesfilename + '.xyz')
 
         elif len(self.XYZ.split('/') ) < 2:
             cartlines = self.read_cart(smiles)
 
         elif len(self.XYZ.split('/')) > 2:  
             self.XYZ = self.XYZ.replace('g09','gaussian')
-            if io.check_file(io.db_opt_path(self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2], None, smiles) + '/' + smiles + '.geo'):
+            if io.check_file(io.db_opt_path(self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2], None, smiles) + '/' + smilesfilename + '.geo'):
                 cartlines = io.db_get_opt_prop(smiles, 'geo', None, self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2])
                 cartlines = cartlines.replace('\n\n','')
                 #cartlines = 'Geometry ' + str(len(cartlines.split('\n'))) + ' Angstrom\n' + cartlines
                 cartlines = str(len(cartlines.split('\n'))) + ' \n\n' + cartlines
-                io.write_file(cartlines,smiles + '.xyz')
-            elif io.check_file(io.db_opt_path(self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2], None, smiles) + '/' + smiles + '.xyz'):
+                io.write_file(cartlines,smilesfilename + '.xyz')
+            elif io.check_file(io.db_opt_path(self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2], None, smiles) + '/' + smilesfilename + '.xyz'):
                 cartlines = io.db_get_opt_prop(smiles, 'xyz', None, self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2]).split('\n\n')[1]
                 #cartlines = 'Geometry ' + cartlines.split('\n')[0] + ' Angstrom\n' + cartlines
                 cartlines = cartlines.split('\n')[0] + ' \n\n' + cartlines
-                io.write_file(cartlines,smiles + '.xyz')
+                io.write_file(cartlines,smilesfilename + '.xyz')
             else:
                 print ('\nERROR: No geometry found at ' + io.db_opt_path(self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2], None, smiles)
-                               + smiles + '.xyz' + '\n...building using OpenBabel instead')
-                self.build_cart(smiles)
+                               + smilesfilename + '.xyz' + '\n...building using OpenBabel instead')
+                self.build_cart(smiles,self.mult)
         else:
             print('\nERROR: You have not specified a valid way to get the coordinates.  Use false, true, smiles.log, smiles.geo, smiles.xyz, or prog/method/basis')
         mol         = ob.get_mol(smiles,make3D=True)
@@ -148,9 +150,7 @@ class MOL:
         self.stoich = ob.get_formula(mol)
         #Peform Test_Chem#########################
         tempfile = 'temp'
-        cart     = os.getcwd() + '/' +  smiles.replace('[','\[').replace(']','\]') + '.xyz'
-        cart     = cart.replace('(','\(').replace(')','\)')
-        os.system(self.convert + ' ' + cart + ' > ' + tempfile)
+        os.system(self.convert + ' ' + smilesfilename + '.xyz > ' + tempfile)
         if os.stat(tempfile).st_size < 80:
             print('Failed')
             print('Please check that directory name and cartesian coordinate file name are equivalent')
@@ -164,6 +164,8 @@ class MOL:
             return atoms, measure, angles
 
         #Get relevant data from Test_Chem output file########
+        self.ilin =' 0'
+
         props,lines = io.read_file(tempfile).split('Z-Matrix:\n')
         props,order = props.split('Z-Matrix atom order:')
 
@@ -171,32 +173,32 @@ class MOL:
         for index in order.split('\n')[1:-2]:
             self.sort.append(index.split('>')[1])
         io.rm(tempfile)
+
         lines = lines.split('\n')
         for i,line in enumerate(lines):
             if line == '':
                 break
-            atoms.extend([line.rstrip('\n').replace(' ','').split(',')])                     #Gets connectivity information
+            atoms.extend([line.rstrip('\n').replace(' ','').split(',')])     #Main part of ZMAT
+
         for j in range(i+1,len(lines)):
             if 'Const' in lines[j] or 'Rot' in lines[j] or 'Beta' in lines[j]:
                 break
-            measure.extend(lines[j].replace('=',' ').rstrip('\n').split())   #Gets bond lengths, bond angles, and dihedral angles
+            measure.extend(lines[j].replace('=',' ').rstrip('\n').split())   #Gets parameters
 
         if "Const" in lines[j] and lines[j].split(':')[1].rstrip('\n').strip() != '':
+            self.ilin =' 1'
             consts  = lines[j].split(':')[1].strip().split()              #Gets rotational angles to scan
             if "Rot" in lines[j+2] and lines[j+2].split(':')[1].rstrip('\n').strip() != '':
                 angles  = lines[j+2].replace(" ","").upper().split(':')[1].strip().split(',')              #Gets rotational angles to scan
         elif "Rot" in lines[j] and lines[j].split(':')[1].rstrip('\n').strip() != '':
                 angles  = lines[j].replace(" ","").upper().split(':')[1].strip().split(',')              #Gets rotational angles to scan
-        self.ilin =' 0'
         self.symnum = re.search("symmetry number = (\w+)", props).groups()[0]#Symmetry factor
         measure = np.array(measure)                     
         if  (len(measure)%2 != 0):
             measure = measure[:-1]
         measure = measure.reshape( len(measure)/2, 2)                        #Puts measurements into two columns
-        print measure
         for angle in measure:
             if 'R' in angle[0]:
-                print angle
                 angle[1] = str(float(angle[1]) * 0.529177)                   #bohr to angstrom
 
         #Put dummy atoms paramters inside zmat
@@ -250,7 +252,7 @@ class MOL:
         #Stochastic Geometry Search############
         zmatstring  = 'nosmp dthresh ethresh\n'     
         zmatstring += self.nsamps + '  1.0  0.00001\n'
-
+        smilesfilename = ob.get_smiles_filename(smiles)
         if self.typemol == 'reac' or self.typemol == 'prod':
             atoms, measure, angles  = update_interns(atoms,measure,angles)
             
@@ -324,14 +326,14 @@ class MOL:
                 E= str(pa.gaussian_energy(io.read_file('../' + self.XYZ)))
             elif '.xyz' in self.XYZ:
                 E = io.read_file(self.XYZ).split('\n')[1]
-            elif io.check_file('../' + smiles + '.ene'):
-                E = io.read_file('../' + smiles + '.ene')
+            elif io.check_file('../' + smilesfilename + '.ene'):
+                E = io.read_file('../' + smilesfilename + '.ene')
             elif len(self.XYZ.split('/')) > 2 :
-                E = io.db_get_sp_prop(smiles, 'ene', None, self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2]
+                E = io.db_get_sp_prop(smilesfilename, 'ene', None, self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2]
                                                           ,self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2])
                 if E == None:
                     print('\nNo energy found at ' + io.db_sp_path(self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2], 
-                                  None, smiles,self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2]) + smiles + '.ene')
+                                  None, smiles,self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2]) + smilesfilename + '.ene')
             else:
                 E = '0'
             if E == None:
