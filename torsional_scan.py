@@ -188,11 +188,7 @@ class ES:
         """
         Checks MC geoms to make sure they are the same inchii as the starting species
         """
-        n = 1
-        if int(self.nsamps) > 9:
-            n=2
-            if int(self.nsamps)> 99:
-                n=3
+        n = 2
         filename =  'geoms/reac1_' + '1'.zfill(n) + '.xyz'
         coords = io.read_file(filename)
         lowcoords = coords
