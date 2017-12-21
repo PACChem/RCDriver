@@ -188,6 +188,7 @@ class ES:
         """
         Checks MC geoms to make sure they are the same inchii as the starting species
         """
+        print('Task: Checking level0 geometries...')
         n = 2
         filename =  'geoms/reac1_' + '1'.zfill(n) + '.xyz'
         coords = io.read_file(filename)
@@ -205,6 +206,7 @@ class ES:
                        energy = float(coords.split('\n')[1]) 
                        lowcoords = coords
         io.write_file("\n".join(lowcoords.split("\n")[2:]),'geom.xyz')
+        print('Monte Carlo sampling successfully found geom.xyz!')
         return 
 
 class THERMO:
