@@ -15,11 +15,12 @@ class MOL:
         self.typemol    = typemol
         #OPTIONS##############################
         self.nsamps     = opts[0]    #number of MonteCarlo sampling points
-        self.interval   = opts[1]    #Interval for tors scan (should be same geometry as 0 degree)
-        self.nsteps     = opts[2]    #Number of points to take on PES
-        self.XYZ        = opts[3]    #if QTC provides XYZ, 'true' (smiles.xyz), logfile 'anything.log', or just use smiles 'false'
-        self.xyzstart   = opts[4]
-        self.MDTAU      = opts[5]
+        self.abcd       = opts[1]
+        self.interval   = opts[2]    #Interval for tors scan (should be same geometry as 0 degree)
+        self.nsteps     = opts[3]    #Number of points to take on PES
+        self.XYZ        = opts[4]    #if QTC provides XYZ, 'true' (smiles.xyz), logfile 'anything.log', or just use smiles 'false'
+        self.xyzstart   = opts[5]
+        self.MDTAU      = opts[6]
         ######################################
         self.ijk        = [0, 0, 0]
         self.sort       = None
@@ -250,12 +251,22 @@ class MOL:
         for geometry search) and nhindsteps (number of points on the PES) 
         """
         #Stochastic Geometry Search############
-        zmatstring  = 'nosmp dthresh ethresh\n'     
-        zmatstring += self.nsamps + '  1.0  0.00001\n'
+
+        
         smilesfilename = ob.get_smiles_filename(smiles)
         if self.typemol == 'reac' or self.typemol == 'prod':
             atoms, measure, angles  = update_interns(atoms,measure,angles)
-            
+            nrotors = len(angles)
+            if not self.nsamps:
+                if len(self.abcd.split(',')) >3:
+                    a, b, c, d = self.abcd.split(',')
+                    a = int(a)
+                    b = int(b)
+                    c = int(c)
+                    d = int(d)
+                    self.nsamps = str(min(a + b * c**nrotors, d))
+            zmatstring  = 'nosmp dthresh ethresh\n'     
+            zmatstring += self.nsamps + '  1.0  0.00001\n'
             #Torsional Scan Parameters#############
             zmatstring += tau_hind_str(atoms, angles, self.interval, self.nsteps, self.MDTAU)
         
@@ -266,12 +277,21 @@ class MOL:
 
 
         else:
-
             sys.path.insert(0, '/home/elliott/scripts')
             import get_sites
             #Torsional Scan Parameters#############
             zmatstring += tau_hind_str(atoms, angles, self.interval, self.nsteps, self.MDTAU)
-
+            nrotors = len(angles)
+            if not self.nsamps:
+                if len(self.abcd.split(',')) >3:
+                    a, b, c, d = self.abcd.split(',')
+                    a = int(a)
+                    b = int(b)
+                    c = int(c)
+                    d = int(d)
+                    self.nsamps = str(min(a + b * c**nrotors, d))
+            zmatstring  = 'nosmp dthresh ethresh\n'     
+            zmatstring += self.nsamps + '  1.0  0.00001\n'
             if n == 'ts':
                 #i,j,k sites###########################
                 zmatstring += '\nisite jsite ksite\n'

@@ -31,6 +31,7 @@ class ES:
         #for estoktp.dat
         self.jobs    =   args.jobs
         self.nsamps  =   args.nsamps   
+        self.abcd    =   args.abcd
         self.interval=   args.interval 
         self.nsteps  =   args.nsteps   
         self.node    =   args.node     
@@ -64,10 +65,10 @@ class ES:
         #Create Read, Prod, and TS objects from parameters
         if not 'MdTau' in self.jobs and self.mdtype.lower() != 'auto':
             self.mdtype = ''
-        params = (self.nsamps, self.interval,self.nsteps,self.XYZ,self.xyzstart,self.mdtype)
+        params = (self.nsamps, self.abcd, self.interval,self.nsteps,self.XYZ,self.xyzstart,self.mdtype)
         Reac = build.MOL(params,'reac')
         Prod = build.MOL(params,'prod')
-        params = (str(int(self.nsamps)*2), self.interval,self.nsteps,self.XYZ,'start',self.mdtype)
+        params = (self.nsamps,self.abcd,self.interval,self.nsteps,self.XYZ,'start',self.mdtype)
         TS   = build.MOL(params,'ts') 
 
         reacs = self.reacs
@@ -538,24 +539,30 @@ class ARGS:
         self.prods    = ''      #list of SMILE strings of products
         self.reactype = ''      #type of reaction (default well)
         self.nTS      = '0'     #Number of transition states (default 0)
+
+        self.restart  = 'false' #Point at which to restart a computation
         self.XYZ      = 'False' #Optimized XYZ provided
         self.xyzstart = 'start' #Optimized XYZ provided
+
         self.node     = 'debug' #Default node to run on in is debug (won't run)
         self.coresh   = '16'    #Default high number of cores is 10
         self.coresl   = '10'     #Default low number of cores is 10
-        self.optoptions   = 'internal'     #Default low number of cores is 10
-        self.nsamps   = '5'     #Number of MC sampling points
+
+        self.optoptions   = 'internal'     #Guassian options
+        self.nsamps   = ''     #Number of MC sampling points
+        self.nrotor   = '0'      #Number of rotors
+        self.abcd     = '3,1,3,100'      #ABCD params to calculate number of mc points
         self.interval = 360     #Interval to scan
         self.nsteps   = '4'     #Number of steps on PES
         self.mdtype   = '2'     #2 or 3D?
-        self.rmg      = 'false' #RMG file to give input
-        self.restart  = 'false' #Point at which to restart a computation
+
         self.anharm   = 'false' #Use and/or run anharmonic xmat computation
         self.anovrwrt = 'true' #Use and/or run anharmonic xmat computation
         self.alltherm = 'true' #Run all the thermochemistry scrips?
         self.qtchf    = 'false'#Enter precomputed heat of formation in a comma-seperated list
         self.hfbasis  = 'auto' #Specify basis for heat of formation?
         self.parseall = 'true' #Specify basis for heat of formation?
+        self.rmg      = 'false' #RMG file to give input
         ###########################################
 
         self.get_options(optionfile)      #Options from input file
@@ -617,6 +624,8 @@ class ARGS:
 
         self.optoptions  = get_param(self.optoptions  , 'Gaussian optim'     , options)
         self.nsamps  = get_param(self.nsamps  , 'sampling'     , options)
+        self.nrotor  = get_param(self.nrotor  , 'Number of rotors'     , options)
+        self.abcd    = get_param(self.abcd    , 'Calculate no. MC points'     , options)
         self.interval= get_param(self.interval, 'interval'     , options)
         self.nsteps  = get_param(self.nsteps  , 'steps'        , options)
         self.mdtype  = get_param(self.mdtype  , 'Multidim'     , options)
