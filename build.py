@@ -58,20 +58,24 @@ class MOL:
 
     def read_cart(self, smiles):
         smilesfilename = ob.get_smiles_filename(smiles)
-        if io.check_file('../' + smilesfilename + '.xyz'):                
-            cartlines = io.read_file('../' + smilesfilename + '.xyz').split('\n\n')[1]
-            #cartlines = 'Geometry ' + str(len(cartlines.split('\n'))-1) + ' Angstrom\n' + cartlines
+        if io.check_file('../' + smilesfilename + '_m' + str(self.mult) + '.xyz'):                
+            cartlines = io.read_file('../' + smilesfilename + '_m' + str(self.mult) + '.xyz').split('\n\n')[1]
             cartlines =  str(len(cartlines.split('\n'))-1) + ' \n\n' + cartlines
             io.write_file(cartlines,smilesfilename + '.xyz')
+        elif io.check_file('../' + smilesfilename + '.xyz'):                
+            cartlines = io.read_file('../' + smilesfilename + '.xyz').split('\n\n')[1]
+            cartlines =  str(len(cartlines.split('\n'))-1) + ' \n\n' + cartlines
+        elif io.check_file('../' + smilesfilename + '_m' + str(self.mult) + '.geo'):
+            cartlines = io.read_file('../' + smilesfilename + '_m' + str(self.mult) + '.geo')
+            cartlines = str(len(cartlines.split('\n'))-1) + ' \n\n' + cartlines
         elif io.check_file('../' + smilesfilename + '.geo'):
             cartlines = io.read_file('../' + smilesfilename + '.geo')
-            #cartlines = 'Geometry ' + str(len(cartlines.split('\n'))-1) + ' Angstrom\n' + cartlines
             cartlines = str(len(cartlines.split('\n'))-1) + ' \n\n' + cartlines
             io.write_file(cartlines,smilesfilename + '.xyz')
         else:
             print('ERROR: no .geo or .xyz provided')
             print('...Using openbabel instead')
-            self.build_cart(smiles, ob.get_multiplicity(mol))
+            self.build_cart(smiles, self.mult)
             return 
         #Find if i,j,k site is specified:
         cartlines = cartlines.split('\n')
@@ -119,10 +123,13 @@ class MOL:
             io.write_file(pa.gaussian_xyz_foresk(cartlines),smilesfilename + '.xyz')
 
         elif '.xyz' in self.XYZ.lower():
-            cartlines = io.read_file(self.XYZ)
-            #cartlines = io.read_file(self.XYZ).split('\n')
-            #cartlines = 'Geometry ' + cartlines[0] + ' Angstrom\n' + '\n'.join(cartlines[2:]) 
-            io.write_file(cartlines,smilesfilename + '.xyz')
+            if io.check_file(self.XYZ):
+                cartlines = io.read_file(self.XYZ)
+                io.write_file(cartlines,smilesfilename + '.xyz')
+            else:
+                print('ERROR: no .geo or .xyz provided')
+                print('...Using openbabel instead')
+                self.build_cart(smiles, self.mult)
 
         elif len(self.XYZ.split('/') ) < 2:
             cartlines = self.read_cart(smiles)
@@ -151,7 +158,10 @@ class MOL:
         self.stoich = ob.get_formula(mol)
         #Peform Test_Chem#########################
         tempfile = 'temp'
-        os.system(self.convert + ' ' + smilesfilename + '.xyz > ' + tempfile)
+        if io.check_file(smilesfilename + '.xyz'):
+            os.system(self.convert + ' ' + smilesfilename + '.xyz > ' + tempfile)
+        else:
+            os.system(self.convert + ' ' + smilesfilename + '_m' + str(self.mult) + '.xyz > ' + tempfile)
         if os.stat(tempfile).st_size < 80:
             print('Failed')
             print('Please check that directory name and cartesian coordinate file name are equivalent')
@@ -168,6 +178,9 @@ class MOL:
         self.ilin =' 0'
 
         props,lines = io.read_file(tempfile).split('Z-Matrix:\n')
+        groups = None;
+        if len(lines.split("Rotational groups:"))>1:
+            lines, groups = lines.split("Rotational groups:") #if x2z prints rot groups
         props,order = props.split('Z-Matrix atom order:')
 
         self.sort = []
@@ -193,6 +206,7 @@ class MOL:
                 angles  = lines[j+2].replace(" ","").upper().split(':')[1].strip().split(',')              #Gets rotational angles to scan
         elif "Rot" in lines[j] and lines[j].split(':')[1].rstrip('\n').strip() != '':
                 angles  = lines[j].replace(" ","").upper().split(':')[1].strip().split(',')              #Gets rotational angles to scan
+        
         self.symnum = re.search("symmetry number = (\w+)", props).groups()[0]#Symmetry factor
         measure = np.array(measure)                     
         if  (len(measure)%2 != 0):
@@ -242,7 +256,14 @@ class MOL:
                                 measure = np.delete(measure, j, axis=0)
                                 j-=1
                             j+=1
-        return atoms, measure, angles 
+
+        nmethylgroups = 0 
+        for group in groups.split('\n'):
+            if 'c1h3' in group.lower():
+               nmethylgroups += 1
+        self.nrotors = len(angles)
+        self.nrotors = self.nrotors - nmethylgroups
+        return atoms, measure, angles
          
 
     def build(self, n, smiles, angles, atoms = [], measure = []):
@@ -256,7 +277,6 @@ class MOL:
         smilesfilename = ob.get_smiles_filename(smiles)
         if self.typemol == 'reac' or self.typemol == 'prod':
             atoms, measure, angles  = update_interns(atoms,measure,angles)
-            nrotors = len(angles)
             if not self.nsamps:
                 if len(self.abcd.split(',')) >3:
                     a, b, c, d = self.abcd.split(',')
@@ -264,7 +284,7 @@ class MOL:
                     b = int(b)
                     c = int(c)
                     d = int(d)
-                    self.nsamps = str(min(a + b * c**nrotors, d))
+                    self.nsamps = str(min(a + b * c**self.nrotors, d))
             zmatstring  = 'nosmp dthresh ethresh\n'     
             zmatstring += self.nsamps + '  1.0  0.00001\n'
             #Torsional Scan Parameters#############
@@ -281,7 +301,6 @@ class MOL:
             import get_sites
             #Torsional Scan Parameters#############
             zmatstring += tau_hind_str(atoms, angles, self.interval, self.nsteps, self.MDTAU)
-            nrotors = len(angles)
             if not self.nsamps:
                 if len(self.abcd.split(',')) >3:
                     a, b, c, d = self.abcd.split(',')
@@ -289,7 +308,7 @@ class MOL:
                     b = int(b)
                     c = int(c)
                     d = int(d)
-                    self.nsamps = str(min(a + b * c**nrotors, d))
+                    self.nsamps = str(min(a + b * c**self.nrotors, d))
             zmatstring  = 'nosmp dthresh ethresh\n'     
             zmatstring += self.nsamps + '  1.0  0.00001\n'
             if n == 'ts':

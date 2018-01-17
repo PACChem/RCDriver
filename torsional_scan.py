@@ -104,9 +104,10 @@ class ES:
                 elif reac in key:
                     import shutil
                     shutil.copyfile('/home/elliott/Packages/TorsScan/abstractors/' + reac + '.dat','reac2.dat')
-                    
+            self.nsamps = Reac.nsamps
             stoich.append(Reac.stoich)
             self.symnums.append(Reac.symnum)
+       
             print('completed')
 
         #Build prodn.dat
@@ -185,7 +186,7 @@ class ES:
         return
     
 
-    def check_geoms(self):
+    def check_geoms(self,nsamps):
         """
         Checks MC geoms to make sure they are the same inchii as the starting species
         """
@@ -197,7 +198,7 @@ class ES:
         mol = ob.get_mol(coords)
         name =  ob.get_inchi_key(mol)
         energy = float(coords.split('\n')[1])
-        for i in range(2, int(self.nsamps) + 1):
+        for i in range(2, int(nsamps) + 1):
             filename =  'geoms/reac1_' + '{}'.format(i).zfill(n) + '.xyz'
             if io.check_file(filename):
                 coords = io.read_file(filename)
@@ -1030,8 +1031,8 @@ if __name__ == "__main__":
         es.build_subdirs()
         es.build_files()
         es.execute()
-        if ("Opt" in args.jobs or "nOpt" in args.jobs) and (not "Opt_1" in args.jobs or not "nOpt_1" in args.jobs):
-            es.check_geoms()
+        if ("Opt" in args.jobs and not "Opt_1" in args.jobs):
+            es.check_geoms(es.nsamps)
 
     #HEY ME! move this outside of main
     optlevel = ''
