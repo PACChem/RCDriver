@@ -258,8 +258,9 @@ class MOL:
                             j+=1
 
         nmethylgroups = 0 
-        for group in groups.split('\n'):
-            if 'c1h3' in group.lower():
+        for rotor in groups.split('\n'):
+            grouplist = rotor[3:].lower().split()
+            if 'c1h3' in grouplist:
                nmethylgroups += 1
         self.nrotors = len(angles)
         self.nrotors = self.nrotors - nmethylgroups

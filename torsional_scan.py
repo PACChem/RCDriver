@@ -781,7 +781,8 @@ def get_param(param,keyword,inputlines):
      """
      for line in inputlines:
          if key_check(line,keyword):
-             return get_val(line,1)
+             if not line.startswith("#"):
+                 return get_val(line,1)
      return param
  
 def parse(n, species, lines, optlevel,enlevel,hlen,lines2):
