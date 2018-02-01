@@ -193,6 +193,7 @@ class ES:
         print('Task: Checking level0 geometries...')
         n = 2
         filename =  'geoms/reac1_' + '1'.zfill(n) + '.xyz'
+        lowfilename   = filename
         coords = io.read_file(filename)
         lowcoords = coords
         mol = ob.get_mol(coords)
@@ -207,8 +208,11 @@ class ES:
                     if float(coords.split('\n')[1]) < energy:
                        energy = float(coords.split('\n')[1]) 
                        lowcoords = coords
-        io.write_file("\n".join(lowcoords.split("\n")),'geom.xyz')
-        #io.write_file("\n".join(lowcoords.split("\n")[2:]),'geom.xyz')
+                       lowfilename   = filename
+                else: 
+                    print('Connectivity change after torsional optimization. (InChI mismatch) {}.')
+        io.cp(lowfilename,'torsopt.xyz')
+        io.write_file("\n".join(lowcoords.split("\n")[2:]),'geom.xyz')
         print('Monte Carlo sampling successfully found geom.xyz!')
         return 
 
