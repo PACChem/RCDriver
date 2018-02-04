@@ -175,14 +175,14 @@ class MOL:
             return atoms, measure, angles
 
         #Get relevant data from Test_Chem output file########
-        self.ilin =' 0'
-
+        self.ilin =' 1'
         props,lines = io.read_file(tempfile).split('Z-Matrix:\n')
-        groups = None;
+        groups = '';
         if len(lines.split("Rotational groups:"))>1:
             lines, groups = lines.split("Rotational groups:") #if x2z prints rot groups
         props,order = props.split('Z-Matrix atom order:')
-
+        if ('non' in re.search("molecule is (\w+)", props).groups()[0]):
+            self.ilin = ' 0'
         self.sort = []
         for index in order.split('\n')[1:-2]:
             self.sort.append(index.split('>')[1])
@@ -200,7 +200,6 @@ class MOL:
             measure.extend(lines[j].replace('=',' ').rstrip('\n').split())   #Gets parameters
 
         if "Const" in lines[j] and lines[j].split(':')[1].rstrip('\n').strip() != '':
-            self.ilin =' 1'
             consts  = lines[j].split(':')[1].strip().split()              #Gets rotational angles to scan
             if "Rot" in lines[j+2] and lines[j+2].split(':')[1].rstrip('\n').strip() != '':
                 angles  = lines[j+2].replace(" ","").upper().split(':')[1].strip().split(',')              #Gets rotational angles to scan

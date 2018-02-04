@@ -212,6 +212,7 @@ class ES:
                 else: 
                     print('Connectivity change after torsional optimization. (InChI mismatch) {}.')
         io.cp(lowfilename,'torsopt.xyz')
+        #io.write_file("\n".join(lowcoords.split("\n")),'geom.xyz')
         io.write_file("\n".join(lowcoords.split("\n")[2:]),'geom.xyz')
         print('Monte Carlo sampling successfully found geom.xyz!')
         return 
