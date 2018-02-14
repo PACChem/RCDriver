@@ -63,7 +63,7 @@ class ES:
         stoich = []
 
         #Create Read, Prod, and TS objects from parameters
-        if not 'MdTau' in self.jobs and self.mdtype.lower() != 'auto':
+        if not 'MdTau' in self.jobs: #and self.mdtype.lower() != 'auto':
             self.mdtype = ''
         params = (self.nsamps, self.abcd, self.interval,self.nsteps,self.XYZ,self.xyzstart,self.mdtype)
         Reac = build.MOL(params,'reac')
@@ -136,7 +136,7 @@ class ES:
             if k == 0:
                 zmatstring =TS.build(tstype[k], prod, TSangles, TSatoms)
             else:
-                params = ('1', self.interval,self.nsteps,'False','start','MdTau' in self.jobs)
+                params = ('1', self.abcd,self.interval,self.nsteps,'False','start','MdTau' in self.jobs)
                 TS   = build.MOL(params,'ts') 
                 TS.charge = TScharge
                 TS.mult   = int(2.*TSspin + 1)

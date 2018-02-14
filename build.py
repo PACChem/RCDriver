@@ -181,7 +181,8 @@ class MOL:
         if len(lines.split("Rotational groups:"))>1:
             lines, groups = lines.split("Rotational groups:") #if x2z prints rot groups
         props,order = props.split('Z-Matrix atom order:')
-        if ('non' in re.search("molecule is (\w+)", props).groups()[0]):
+        lin = re.search("molecule is (\w+)", props).groups()[0]
+        if ('non' in lin or 'plan' in lin):
             self.ilin = ' 0'
         self.sort = []
         for index in order.split('\n')[1:-2]:
@@ -195,16 +196,17 @@ class MOL:
             atoms.extend([line.rstrip('\n').replace(' ','').split(',')])     #Main part of ZMAT
 
         for j in range(i+1,len(lines)):
-            if 'Const' in lines[j] or 'Rot' in lines[j] or 'Beta' in lines[j]:
-                break
+            if lines[j]:
+                if 'const' in lines[j].lower() or 'Rot' in lines[j] or 'Beta' in lines[j]:
+                    break
             measure.extend(lines[j].replace('=',' ').rstrip('\n').split())   #Gets parameters
-
-        if "Const" in lines[j] and lines[j].split(':')[1].rstrip('\n').strip() != '':
-            consts  = lines[j].split(':')[1].strip().split()              #Gets rotational angles to scan
-            if "Rot" in lines[j+2] and lines[j+2].split(':')[1].rstrip('\n').strip() != '':
-                angles  = lines[j+2].replace(" ","").upper().split(':')[1].strip().split(',')              #Gets rotational angles to scan
-        elif "Rot" in lines[j] and lines[j].split(':')[1].rstrip('\n').strip() != '':
-                angles  = lines[j].replace(" ","").upper().split(':')[1].strip().split(',')              #Gets rotational angles to scan
+        for n in range(len(lines[j:])):
+            if "Const" in lines[j+n] and lines[j].split(':')[1].rstrip('\n').strip() != '':
+                consts  = lines[j+n].split(':')[1].strip().split()              #Gets rotational angles to scan
+                if "Rot" in lines[j+n] and lines[j+n].split(':')[1].rstrip('\n').strip() != '':
+                    angles  = lines[j+n].replace(" ","").upper().split(':')[1].strip().split(',')              #Gets rotational angles to scan
+            elif "Rot" in lines[j+n] and lines[j+n].split(':')[1].rstrip('\n').strip() != '':
+                    angles  = lines[j+n].replace(" ","").upper().split(':')[1].strip().split(',')              #Gets rotational angles to scan
         
         self.symnum = re.search("symmetry number = (\w+)", props).groups()[0]#Symmetry factor
         measure = np.array(measure)                     
@@ -300,7 +302,6 @@ class MOL:
             sys.path.insert(0, '/home/elliott/scripts')
             import get_sites
             #Torsional Scan Parameters#############
-            zmatstring += tau_hind_str(atoms, angles, self.interval, self.nsteps, self.MDTAU)
             if not self.nsamps:
                 if len(self.abcd.split(',')) >3:
                     a, b, c, d = self.abcd.split(',')
@@ -311,6 +312,7 @@ class MOL:
                     self.nsamps = str(min(a + b * c**self.nrotors, d))
             zmatstring  = 'nosmp dthresh ethresh\n'     
             zmatstring += self.nsamps + '  1.0  0.00001\n'
+            zmatstring += tau_hind_str(atoms, angles, self.interval, self.nsteps, self.MDTAU)
             if n == 'ts':
                 #i,j,k sites###########################
                 zmatstring += '\nisite jsite ksite\n'
@@ -662,7 +664,7 @@ def tau_hind_str(atoms, angles, interval, nsteps, mdtau):
         periodicity = find_period(atoms, hin)
         string += hin + ' 0 ' + str(float(interval)/periodicity)  + ' ' + str(int(round(float(nsteps)/periodicity))) + ' ' + str(periodicity)  + '\n'   
 
-    if mdtau:
+    if mdtau and len(angles) > 1:
         mdtau   = mdtau.strip('D').strip('d')
         string += '\nnhind' + mdtau + 'D\n'
         string += '1\n'
