@@ -37,6 +37,7 @@ class ES:
         self.node    =   args.node     
         self.coresh  =   args.coresh   
         self.coresl  =   args.coresl   
+        self.mem     =   args.mem
         self.symnums =   [] 
    
     def build_subdirs(self):
@@ -156,7 +157,7 @@ class ES:
         #Builds estoktp.dat to restart at any step
         print('Task: Building estoktp.dat...')
         self.jobs = update_jobs(self.jobs, self.restart)
-        params    = (self.stoich, self.reactype, self.coresh,self.coresl,self)
+        params    = (self.stoich, self.reactype, self.coresh,self.coresl,self.mem,self)
         eststring = build.build_estoktp(params,self.jobs,i,j,self.nTS)
         io.write_file(eststring, 'estoktp.dat')
         print('completed')
@@ -554,6 +555,7 @@ class ARGS:
         self.node     = 'debug' #Default node to run on in is debug (won't run)
         self.coresh   = '16'    #Default high number of cores is 10
         self.coresl   = '10'     #Default low number of cores is 10
+        self.mem   = '200'     #Default low number of cores is 10
 
         self.optoptions   = 'internal'     #Guassian options
         self.nsamps   = ''     #Number of MC sampling points
@@ -625,6 +627,7 @@ class ARGS:
         self.node    = get_param(self.node    , 'node'         , options)
         self.coresh  = get_param(self.coresh  , 'cores high'   , options)
         self.coresl  = get_param(self.coresl  , 'cores low'    , options)
+        self.mem     = get_param(self.mem     , 'Memory'    , options)
 
         self.XYZ     = get_param(self.XYZ     , 'Use QTC'      , options)
         self.xyzstart= get_param(self.xyzstart, 'Use xyz as'   , options)

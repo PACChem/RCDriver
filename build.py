@@ -513,6 +513,7 @@ def build_estoktp(params, jobs, nreacs, nprods, nTS):
     reactype  = params[1]
     coresh    = params[2]
     coresl    = params[3]
+    mem       = params[4]
     
     eststring = ' Stoichiometry\t' + stoich.upper()
     
@@ -571,7 +572,7 @@ def build_estoktp(params, jobs, nreacs, nprods, nTS):
  
     eststring += '\nEnd'
     eststring += '\n ' + coresh + ',' + coresl + '\n numprocll,numprochl\n'
-    eststring += ' 200MW  300MW\n gmemll gmemhl\n'
+    eststring += ' ' + mem + 'MW  ' + mem + 'MW\n gmemll gmemhl\n'
  
     return eststring
 
