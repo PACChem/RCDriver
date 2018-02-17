@@ -218,6 +218,21 @@ class ES:
         print('Monte Carlo sampling successfully found geom.xyz!')
         return 
 
+
+    def me_file_abs_path(self):
+        """
+        Replaces relative path in mdhr file with absolute path
+        """
+        if io.check_file('me_files/reac1_hr.me'):
+            lines = io.read_file('me_files/reac1_hr.me')
+            if "PotentialEnergySurface[kcal/mol]" in lines:
+                before, after = lines.split("PotentialEnergySurface[kcal/mol]")
+                after = after.split('\n')
+                after[0] = after[0].replace('./',io.pwd() + '/')
+                lines = before + "PotentialEnergySurface[kcal/mol]" + '\n'.join(after)
+                io.write_file(lines,'me_files/reac1_hr.me')
+        return
+
 class THERMO:
     def __init__(self,args):
         """
@@ -1043,6 +1058,8 @@ if __name__ == "__main__":
         es.execute()
         if ("Opt" in args.jobs and not "Opt_1" in args.jobs):
             es.check_geoms(es.nsamps)
+        if ("1dTau" in args.jobs):
+            es.me_file_abs_path()
 
     #HEY ME! move this outside of main
     optlevel = ''
