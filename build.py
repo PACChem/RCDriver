@@ -641,7 +641,7 @@ def find_period(zmat,hin):
     if sym1 <= 1 or sym2 <=1:
         period =  max(sym1, sym2)
     elif sym1 == sym2:
-        period =  sym1 + sym2
+        period =  sym1 #+ sym2
     else:
         period = sym1 * sym2
     if period < 1:
