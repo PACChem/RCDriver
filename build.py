@@ -1,17 +1,19 @@
-#!/home/keceli/anaconda2/bin/python
+#!/usr/bin/python
 
 import os
 import numpy as np
 import sys
-sys.path.insert(0, '/home/elliott/Packages/QTC/qtc')
+sys.path.insert(0, '/home/elliott/Packages/QTC/')
 import patools as pa
 import iotools as io
 import obtools as ob
 
 class MOL:
-    def __init__(self,opts,typemol = 'reac'):
+    def __init__(self,paths, opts,typemol = 'reac'):
          
-        self.convert    = io.get_path('/home/ygeorgi/build/ack/test_chem') 
+        self.paths      = paths
+        self.convert    = paths['x2z'] 
+
         self.typemol    = typemol
         #OPTIONS##############################
         self.nsamps     = opts[0]    #number of MonteCarlo sampling points
@@ -25,7 +27,7 @@ class MOL:
         self.ijk        = [0, 0, 0]
         self.sort       = None
 
-    def build_cart(self,smiles,mult):
+    def build_obcart(self,smiles,mult):
         """
         Uses QTC interface by Murat Keceli to Openbabel to generate cartesian coorinate file based 
         on SMILES string
@@ -38,7 +40,7 @@ class MOL:
         io.write_file('\n'.join(lines), filename)
         return 
     
-    def ob_zmat(self,smiles):
+    def build_obzmat(self,smiles):
         """
         Uses QTC interface by Murat Keceli to Openbabel to generate zmat file based on smile string
         """
@@ -75,7 +77,7 @@ class MOL:
         else:
             print('ERROR: no .geo or .xyz provided')
             print('...Using openbabel instead')
-            self.build_cart(smiles, self.mult)
+            self.build_obcart(smiles, self.mult)
             return 
         #Find if i,j,k site is specified:
         cartlines = cartlines.split('\n')
@@ -89,25 +91,20 @@ class MOL:
                 elif line.split()[0] == '3':
                     self.ijk[2] = str(i)
                 elif line.split()[0] == '4':
-                    temp = cartlines[i]
+                    temp = cartlines[0]
+                    cartlines[0] = cartlines[i]
                     del cartlines[i]
-                    cartlines.insert(2,temp)
+                    cartlines.insert(0,temp)
         cartlines = '\n'.join(cartlines)
         io.write_file(cartlines,smilesfilename + '.xyz')
         return 
 
-    def cart2zmat(self,smiles): 
-        """
-        Runs test_chem by Yuri Georgievski on a file of Cartesian coordinates and collects
-        the internal coordinate and torsional angle information that it outputs
-        """
-        import re
+    def build_xyzfile(self, smiles):
 
-        #initialize########################33
-        atoms   = []
-        measure = []
-        angles  = []
-        consts  = []
+        """
+        Finds user-specified xyz or geo coordinates or generates openbabel coordinates and places
+        them in data/<smiles>.xyz for x2z to use
+        """
         smilesfilename = ob.get_smiles_filename(smiles) 
         if '_m' in smiles:
             smiles, self.mult = smiles.split('_m')
@@ -115,7 +112,7 @@ class MOL:
             self.mult = ob.get_multiplicity(ob.get_mol(smiles))
 
         if self.XYZ.lower() == 'false':
-            self.build_cart(smiles,self.mult)
+            self.build_obcart(smiles,self.mult)
 
         elif '.log' in self.XYZ.lower():
             cartlines = io.read_file('../' + self.XYZ)
@@ -128,93 +125,140 @@ class MOL:
             else:
                 print('ERROR: no .geo or .xyz provided')
                 print('...Using openbabel instead')
-                self.build_cart(smiles, self.mult)
-
+                self.build_obcart(smiles, self.mult)
+        
         elif len(self.XYZ.split('/') ) < 2:
             cartlines = self.read_cart(smiles)
 
         elif len(self.XYZ.split('/')) > 2:  
             self.XYZ = self.XYZ.replace('g09','gaussian')
+
             if io.check_file(io.db_opt_path(self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2], None, smiles) + '/' + smilesfilename + '.geo'):
                 cartlines = io.db_get_opt_prop(smiles, 'geo', None, self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2])
                 cartlines = cartlines.replace('\n\n','')
-                #cartlines = 'Geometry ' + str(len(cartlines.split('\n'))) + ' Angstrom\n' + cartlines
                 cartlines = str(len(cartlines.split('\n'))) + ' \n\n' + cartlines
-                io.write_file(cartlines,smilesfilename + '.xyz')
+                io.write_file(cartlines,smilesfilename + '.xyz'
+)
             elif io.check_file(io.db_opt_path(self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2], None, smiles) + '/' + smilesfilename + '.xyz'):
                 cartlines = io.db_get_opt_prop(smiles, 'xyz', None, self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2]).split('\n\n')[1]
-                #cartlines = 'Geometry ' + cartlines.split('\n')[0] + ' Angstrom\n' + cartlines
                 cartlines = cartlines.split('\n')[0] + ' \n\n' + cartlines
                 io.write_file(cartlines,smilesfilename + '.xyz')
+
             else:
                 print ('\nERROR: No geometry found at ' + io.db_opt_path(self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2], None, smiles)
                                + smilesfilename + '.xyz' + '\n...building using OpenBabel instead')
-                self.build_cart(smiles,self.mult)
+                self.build_obcart(smiles,self.mult)
         else:
             print('\nERROR: You have not specified a valid way to get the coordinates.  Use false, true, smiles.log, smiles.geo, smiles.xyz, or prog/method/basis')
+        return smilesfilename
+
+    def cart2zmat(self,smiles): 
+        """
+        Runs x2z by Yuri Georgievski on a file of Cartesian coordinates and collects
+        the internal coordinate and torsional angle information that it outputs
+        """
+        import re
+
+        ######   initialize  ###############
+        ####################################
+        atoms   = []
+        measure = []
+        angles  = []
+        consts  = []
+
+        smilesfilename = self.build_xyzfile(smiles)
         mol         = ob.get_mol(smiles,make3D=True)
         self.charge = ob.get_charge(mol)
-        self.stoich = ob.get_formula(mol)
-        #Peform Test_Chem#########################
+        self.stoich = ob.get_formula(mol
+)
+        #######   RUN X2Z   #################
+        #####################################
         tempfile = 'temp'
+        paths = self.paths
+        gcc     = paths['gcc']
+        intel   = paths['intel']
+
         if io.check_file(smilesfilename + '.xyz'):
-            os.system(self.convert + ' ' + smilesfilename + '.xyz > ' + tempfile)
+            os.system('{0}; {1}; {2} {3}.xyz > {4}'.format(gcc, intel, self.convert, smilesfilename,tempfile))
         else:
-            os.system(self.convert + ' ' + smilesfilename + '_m' + str(self.mult) + '.xyz > ' + tempfile)
+            os.system('{0}; {1}; {2} {3}_m{4}.xyz >  {5}'.format(gcc, intel, self.convert, smilesfilename, str(self.mult),tempfile))
+
         if os.stat(tempfile).st_size < 80:
             print('Failed')
             print('Please check that directory name and cartesian coordinate file name are equivalent')
             print('Please check that test_chem is in location: ' +  self.convert)
-            print('Using OpenBabel zmat: no rotation dihedrals will be specified')
-            atoms, measure = self.ob_zmat(smiles)                     #If test_chem fails use openbabel to get zmat 
+            print('Using OpenBabel zmat: no hindered rotors will be specified')
+            atoms, measure = self.build_obzmat(smiles)                     #If test_chem fails use openbabel to get zmat 
             self.symnum = ' 1'
             self.ilin   = ' 0'
             if len(atoms) < 3:                                        #Linear if dihedral (NEEDS TO ACTUALLY BE COMPUTER)
                 self.ilin =' 1' 
             return atoms, measure, angles
 
-        #Get relevant data from Test_Chem output file########
+        ####Get relevant data from Test_Chem output file########
+        ########################################################
+        props, lines = io.read_file(tempfile).split('Z-Matrix:\n')
+        io.rm(tempfile)
+        
+        #linearity
         self.ilin =' 1'
-        props,lines = io.read_file(tempfile).split('Z-Matrix:\n')
-        groups = '';
-        if len(lines.split("Rotational groups:"))>1:
-            lines, groups = lines.split("Rotational groups:") #if x2z prints rot groups
-        props,order = props.split('Z-Matrix atom order:')
-        lin = re.search("molecule is (\w+)", props).groups()[0]
-        if ('non' in lin or 'plan' in lin):
+        result = re.search("molecule is (\w+)", props).groups()[0]
+        if ('non' in result or 'plan' in result):
             self.ilin = ' 0'
+
+        #enantiomers
+        ent = False
+        result = re.search("has enantiomer?(\w+)", props)
+        if result: 
+            result = result.groups()[0]
+            if ('yes' in result):
+                ent = True
+
+        #Symmetry number
+        self.symnum = re.search("symmetry number = (\w+)", props).groups()[0]#Symmetry factor
+
+        #Rearrangement
+        props, order = props.split('Z-Matrix atom order:')
         self.sort = []
         for index in order.split('\n')[1:-2]:
             self.sort.append(index.split('>')[1])
-        io.rm(tempfile)
 
+        #rotational groups
+        groups = ''
+        if len(lines.split("Rotational groups:")) > 1:
+            lines, groups = lines.split("Rotational groups:") #if x2z prints rot groups
+
+        #zmatrix connectivity
         lines = lines.split('\n')
         for i,line in enumerate(lines):
             if line == '':
                 break
             atoms.extend([line.rstrip('\n').replace(' ','').split(',')])     #Main part of ZMAT
 
+        #zmatrix parameters
         for j in range(i+1,len(lines)):
             if lines[j]:
                 if 'const' in lines[j].lower() or 'Rot' in lines[j] or 'Beta' in lines[j]:
                     break
             measure.extend(lines[j].replace('=',' ').rstrip('\n').split())   #Gets parameters
+
+        #Hindered rotor dihedral angles and constant angles
         for n in range(len(lines[j:])):
             if "Const" in lines[j+n] and lines[j].split(':')[1].rstrip('\n').strip() != '':
-                consts  = lines[j+n].split(':')[1].strip().split()              #Gets rotational angles to scan
+                consts  = lines[j+n].split(':')[1].strip().split()   
                 if "Rot" in lines[j+n] and lines[j+n].split(':')[1].rstrip('\n').strip() != '':
-                    angles  = lines[j+n].replace(" ","").upper().split(':')[1].strip().split(',')              #Gets rotational angles to scan
+                    angles  = lines[j+n].replace(" ","").upper().split(':')[1].strip().split(',')   
             elif "Rot" in lines[j+n] and lines[j+n].split(':')[1].rstrip('\n').strip() != '':
-                    angles  = lines[j+n].replace(" ","").upper().split(':')[1].strip().split(',')              #Gets rotational angles to scan
+                    angles  = lines[j+n].replace(" ","").upper().split(':')[1].strip().split(',')  
         
-        self.symnum = re.search("symmetry number = (\w+)", props).groups()[0]#Symmetry factor
+        #Reformat zmatrix parameters
         measure = np.array(measure)                     
         if  (len(measure)%2 != 0):
             measure = measure[:-1]
-        measure = measure.reshape( len(measure)/2, 2)                        #Puts measurements into two columns
+        measure = measure.reshape( len(measure)/2, 2)      #Puts measurements into two columns
         for angle in measure:
             if 'R' in angle[0]:
-                angle[1] = str(float(angle[1]) * 0.529177)                   #bohr to angstrom
+                angle[1] = str(float(angle[1]) * 0.529177) #bohr to angstrom
 
         #Put dummy atoms paramters inside zmat
         for i, row in enumerate(atoms):
@@ -235,7 +279,8 @@ class MOL:
                             measure = np.delete(measure, j, axis=0)
                             j-=1
                     j+=1
-        ##Put constant angles inside zmat 
+
+        #Put constant angles inside zmat 
         for angle in consts:
             for i, row in enumerate(atoms):
                 if len(row) > 5:
@@ -256,7 +301,7 @@ class MOL:
                                 measure = np.delete(measure, j, axis=0)
                                 j-=1
                             j+=1
-
+        #Count rotors
         nmethylgroups = 0 
         for rotor in groups.split('\n'):
             grouplist = rotor[3:].lower().split()
@@ -264,6 +309,7 @@ class MOL:
                nmethylgroups += 1
         self.nrotors = len(angles)
         self.nrotors = self.nrotors - nmethylgroups
+
         return atoms, measure, angles
          
 
@@ -308,7 +354,7 @@ class MOL:
                     b = int(b)
                     c = int(c)
                     d = int(d)
-                    self.nsamps = str(min(a + b * c**1, d))#self.nrotors, d))
+                    self.nsamps = str(min(a + b * c**self.nrotors, d))
             zmatstring  = 'nosmp dthresh ethresh\n'     
             zmatstring += self.nsamps + '  1.0  0.00001\n'
             zmatstring += tau_hind_str(atoms, angles, self.interval, self.nsteps, self.MDTAU)
@@ -458,10 +504,7 @@ def build_theory(meths,nTS, optoptions):
     tsopt  = ' opt=(ts,calcfc,noeig,intern,maxcyc=50)\n '
     rpopt  = ' opt=(' + optoptions +  ')\n '
     vwopt  = ' opt=(internal,calcall) scf=qc\n '
-    allint = ' int=ultrafine nosym '
-    ircfor = ' irc(forward,calcall,stepsize=3,maxpoints=10)\n int=ultrafine nosym iop(7/33=1)\n'
-    ircrev = ' irc(reverse,calcall,stepsize=3,maxpoints=10)\n int=ultrafine nosym iop(7/33=1)\n'
-    ircend = ' HRcc 1 1'
+    allint = 'int=ultrafine nosym '
 
     for meth in meths:
         if 'molpro' in meth[1]:
@@ -479,13 +522,8 @@ def build_theory(meths,nTS, optoptions):
             io.write_file(molpro[0], molpro[1])
 
         elif  'g09' in meth[1]:   
-            theory += meth[0] + ' ' + meth[1] + '\n'
-            if meth[0] == 'irc':
-                theory +=  meth[2] + ircfor + meth[2] + ircrev + ircend
-            elif 'hlevel' in meth[0]:
-                theory += meth[2] + '\n' + allint
-            else:
-                theory += meth[2] + rpopt + allint
+            theory += meth[0] + ' ' + meth[1] + '\n '
+            theory += meth[2] + rpopt + allint
             if meth[0] == 'level1':
                 theory += ' freq'
             theory += '\n\n'
@@ -662,7 +700,7 @@ def tau_hind_str(atoms, angles, interval, nsteps, mdtau):
     string += ' -->nametau, taumin, taumax\n'
     for angle in angles:
         periodicity = find_period(atoms, angle)
-        string += '{0}  0 {1}\n'.format(angle, str(interval))
+        string += angle + ' 0 ' + interval + '\n'
 
     #1 and 2D HIND
     string += '\nnhind\n'
