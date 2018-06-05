@@ -1,9 +1,9 @@
-#!/usr/bin/python
+#!/home/keceli/anaconda2/bin/python
 
 import os
 import numpy as np
 import sys
-sys.path.insert(0, '/home/elliott/Packages/QTC/')
+sys.path.insert(0, '/home/elliott/Packages/QTC/qtc')
 import patools as pa
 import iotools as io
 import obtools as ob
@@ -89,10 +89,9 @@ class MOL:
                 elif line.split()[0] == '3':
                     self.ijk[2] = str(i)
                 elif line.split()[0] == '4':
-                    temp = cartlines[0]
-                    cartlines[0] = cartlines[i]
+                    temp = cartlines[i]
                     del cartlines[i]
-                    cartlines.insert(0,temp)
+                    cartlines.insert(2,temp)
         cartlines = '\n'.join(cartlines)
         io.write_file(cartlines,smilesfilename + '.xyz')
         return 
@@ -309,7 +308,7 @@ class MOL:
                     b = int(b)
                     c = int(c)
                     d = int(d)
-                    self.nsamps = str(min(a + b * c**self.nrotors, d))
+                    self.nsamps = str(min(a + b * c**1, d))#self.nrotors, d))
             zmatstring  = 'nosmp dthresh ethresh\n'     
             zmatstring += self.nsamps + '  1.0  0.00001\n'
             zmatstring += tau_hind_str(atoms, angles, self.interval, self.nsteps, self.MDTAU)
@@ -459,7 +458,10 @@ def build_theory(meths,nTS, optoptions):
     tsopt  = ' opt=(ts,calcfc,noeig,intern,maxcyc=50)\n '
     rpopt  = ' opt=(' + optoptions +  ')\n '
     vwopt  = ' opt=(internal,calcall) scf=qc\n '
-    allint = 'int=ultrafine nosym '
+    allint = ' int=ultrafine nosym '
+    ircfor = ' irc(forward,calcall,stepsize=3,maxpoints=10)\n int=ultrafine nosym iop(7/33=1)\n'
+    ircrev = ' irc(reverse,calcall,stepsize=3,maxpoints=10)\n int=ultrafine nosym iop(7/33=1)\n'
+    ircend = ' HRcc 1 1'
 
     for meth in meths:
         if 'molpro' in meth[1]:
@@ -477,8 +479,13 @@ def build_theory(meths,nTS, optoptions):
             io.write_file(molpro[0], molpro[1])
 
         elif  'g09' in meth[1]:   
-            theory += meth[0] + ' ' + meth[1] + '\n '
-            theory += meth[2] + rpopt + allint
+            theory += meth[0] + ' ' + meth[1] + '\n'
+            if meth[0] == 'irc':
+                theory +=  meth[2] + ircfor + meth[2] + ircrev + ircend
+            elif 'hlevel' in meth[0]:
+                theory += meth[2] + '\n' + allint
+            else:
+                theory += meth[2] + rpopt + allint
             if meth[0] == 'level1':
                 theory += ' freq'
             theory += '\n\n'
@@ -655,7 +662,7 @@ def tau_hind_str(atoms, angles, interval, nsteps, mdtau):
     string += ' -->nametau, taumin, taumax\n'
     for angle in angles:
         periodicity = find_period(atoms, angle)
-        string += angle + ' 0 ' + interval + '\n'
+        string += '{0}  0 {1}\n'.format(angle, str(interval))
 
     #1 and 2D HIND
     string += '\nnhind\n'

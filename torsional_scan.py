@@ -5,7 +5,7 @@ import sys
 import build
 import numpy as np
 sys.path.insert(0, './bin')
-sys.path.insert(0, '/home/elliott/Packages/QTC')
+sys.path.insert(0, '/home/elliott/Packages/QTC/qtc')
 import obtools as ob
 import iotools as io
 import tctools as tc
@@ -84,6 +84,7 @@ class ES:
             key = []
         i,j,k = 0,0,0
         TScharge, TSspin = 0, 0
+        TSrotors = 0
 
         #Build reacn.dat
         for i, reac in enumerate(reacs,start=1):
@@ -105,6 +106,7 @@ class ES:
                 elif reac in key:
                     import shutil
                     shutil.copyfile('/home/elliott/Packages/TorsScan/abstractors/' + reac + '.dat','reac2.dat')
+                TSrotors += Reac.nrotors
             self.nsamps = Reac.nsamps
             stoich.append(Reac.stoich)
             self.symnums.append(Reac.symnum)
@@ -134,6 +136,7 @@ class ES:
             TS.charge = TScharge
             TS.mult   = int(2.*TSspin + 1)
             TS.symnum = ' 1'
+            TS.nrotors = 0#TSrotors
             if k == 0:
                 zmatstring =TS.build(tstype[k], prod, TSangles, TSatoms)
             else:
