@@ -1,5 +1,4 @@
 # TorsScan
-TORSSCAN DOCUMENTATION
 
 Sarah N. Elliott
 
