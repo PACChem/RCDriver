@@ -56,7 +56,7 @@ List up to two, comma-separated SMILES strings
 Specify the type of reaction.  Although EStokTP can accept abstraction, addition, isomerization, and beta-scission, currently 
 TorsScan can only generate the input for abstractions. Default is blank, which means that the job is a well.
 
-* Reaction type: Abstraction*
+*Reaction type: Abstraction*
 
 
 
@@ -233,27 +233,41 @@ Use xyz as: start
 8
 
 1 C          1.09278       -0.02695       -0.03725
+
 3 C          2.60483       -0.02695       -0.03725
+
 2 H          0.70841        0.21668        0.95770
+
    H          0.70841       -1.01041       -0.32373
+   
    H          0.70841        0.71289       -0.74571
+   
    H          2.98920       -0.76678        0.67122
+   
    H          2.98920        0.95652        0.24924
+   
    H          2.98920       -0.27058       -1.03220
 
 **In [CH3].geo:**
 
    C          1.15421        0.14357        0.13126
+   
    H          0.64459       -0.52593        0.81229
+   
    H          0.64457        1.01959       -0.24933
+   
    H          2.17554       -0.05966       -0.16467
-
+   
 or
 
   H          0.64459       -0.52593        0.81229
+  
 4 C          1.15421        0.14357        0.13126
+
    H          0.64457        1.01959       -0.24933
+   
    H          2.17554       -0.05966       -0.16467
+   
 
 
 
