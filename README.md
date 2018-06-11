@@ -36,28 +36,28 @@ The input file separates keywords from their input values with a colon.  The key
 
 ### SPECIES INPUT
 
-**Reactant list:
+** Reactant list:
 
 List up to two, comma-separated SMILES strings.  OpenBabel will generate an xyz geometry for test_chem to transform into the zmat found in reac1.dat and reac2.dat.
 
-*Reactant list (SMILES): C, [OH]
+* Reactant list (SMILES): C, [OH]
 
 
 
-**Product list:
+** Product list:
 
 List up to two, comma-separated SMILES strings 
 
-*Product list:  [CH3], O
+* Product list:  [CH3], O
 
 
 
-**Reaction type: 
+** Reaction type: 
 
 Specify the type of reaction.  Although EStokTP can accept abstraction, addition, isomerization, and beta-scission, currently 
 TorsScan can only generate the input for abstractions. Default is blank, which means that the job is a well.
 
-*Reaction type: Abstraction
+* Reaction type: Abstraction
 
 
 
