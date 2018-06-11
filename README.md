@@ -1,4 +1,4 @@
-## TorsScan
+# TorsScan
 TORSSCAN DOCUMENTATION
 
 Sarah N. Elliott
@@ -9,19 +9,19 @@ function, thermp, pac99 executables to generate 298 K heats of formation, heat c
 
 
 
-# (1) GETTING TORSSCAN
+## (1) GETTING TORSSCAN
 
 Users can clone TorsScan from https://github.com/snelliott/TorsScan or simply use its location at  /home/elliott/Packages/TorsScan on Blues.  
 
 
 
-# (2) INPUT/OUTPUT
+## (2) INPUT/OUTPUT
 
 The main executable is torsional_scan.py.  It will need an inputfile (an example is located at /home/elliott/Packages/TorsScan/input.dat).  If no inputfile is specified (e.g., the command is not  torsional_scan.py myinputfile.txt)  the code will automatically look for a file named input.dat.  TorsScan does not save its output so be sure to tell it (torsional_scan.py > myoutputfile.dat) if you want the output saved.  
 
 
 
-# (3) DEPENDENCIES
+## (3) DEPENDENCIES
 
 TorsScan relies on EStokTP developed by Carlo Cavallotti and Stephen Klippenstein.  Users will need to be a member of the PACC group on blues to execute this code.
 TorsScan uses the iotools (input/output tools), obtools (openbabel tools), and patools (parsing tools) built by Murat Keceli and Sarah Elliott that can be found in /home/keceli/qtc, /home/elliott/Packages/QTC/, or cloned from  https://github.com/keceli/QTC. Obtools, in turn, needs OpenBabel with pybel python bindings.  You will need to either install that by following these easy instructions https://pypi.python.org/pypi/openbabel  or by adding to your bashrc: export PYTHONPATH=$PYTHONPATH:/home/keceli/openbabel-2.4.1/install/lib/python2.7/site-packages.  
@@ -29,12 +29,12 @@ The zmat builder uses x2z by Yuri Georgievski.  This can be cloned from https://
 The thermochemistry computations in TorsScan uses heatform by Sarah Elliott, tctools by Murat Keceli, pac99 by Bonnie Mcbride, thermp by Stephen Klippenstein, and mess by Yuri Georgievski.  TorsScan should find these, but if it fails to try adding /home/elliott/bin/ to your path. The partition function mess code will break if the right compilers are not in your path.  Soft add +gcc-5.3 and +intel-16.0.0 if you are having problems there. If heatform breaks on a Gaussian computation try soft add+g09.  
 
 
-# (4) THE INPUT FILE
+## (4) THE INPUT FILE
 
 The input file separates keywords from their input values with a colon.  The keywords are case sensitive but the values are not.  
 
 
-==SPECIES INPUT===
+### SPECIES INPUT
 
 **Reactant list:
 
@@ -68,7 +68,7 @@ Specify the number of transition states. 0 and 1 are self explanatory, 2 and 3 w
 *No. of transition states: 2
 
 
-===GEOMETRY OPTIONS===
+### GEOMETRY OPTIONS
 
 **Use QTC xyz: 
 
@@ -84,7 +84,7 @@ EstokTP optimizes geometries in multiple of its modules.  This keyword tells Tor
 *Use xyz as: 0
 
 
-===BLUES OPTIONS===
+### BLUES OPTIONS
 
 **Run on node:
 
@@ -114,7 +114,7 @@ Specify the memory in MW. Default is 200.
 *Memory: 500
 
 
-===EStokTP OPTIONS===
+### EStokTP OPTIONS
 
 **No. of MC sampling points:
 
@@ -168,7 +168,7 @@ If a multidimensional scan (Mdtau) is specified in the module input section, thi
 The first column is a list of all of the EStokTP module names.  You can delete rows that you don’t need if desired, but don’t edit the module names that you will use.  If the program or level of theory isn’t specified in the next two columns (columns need to be separated by colons and spacing doesn’t actually matter) it will automatically skip those modules.  In order to run modules lower on the list, the modules above it have to successfully complete first.  The available modules are Opt (the level0 optimization and MC sampling, if you’ve used Geometry options to use xyz as level0 this will just be ignored), Opt_1 (the level1 optimization and frequency computation), 1dtau (The one dimensional hindered rotor scan), MdTau (the multidimensional hindered rotor scan – yes, 1dtau has to be run first), Symm (determines the rotational and optical symmetry numbers – BROKEN right now because it can’t find a MESS executable it needs), HL (high level optimization. TODO: set it up to use correlation additivity i.e., ccsd(t)/tz ~ ccsd(t)/dz + ccsd/tz – ccsd/tz, which should not be too hard for molpro), Irc (an irc), and kTP (which will set up the mess files and run it to get your rates if there is a reaction). The Program has to be either blank, g09, gaussian, or molpro.  Theory should be specified with method/basis.  I’ve found that EStokTP has trouble parsing the energies from completed computations for some methods and basis sets depending on which program you are using so be sure to check the output/estoktp.out file to see if your job died because of the method/basis selection.  
 
 
-===THERMO OPTIONS===
+### THERMO OPTIONS
 
 **Perform all thermochemistry?: 
 
@@ -199,7 +199,7 @@ This will be used in the heat of formation code.   The default is auto which wil
 
 
 
-===OTHER OPTIONS===
+### MISCELLANEOUS OPTIONS
 
 **Restart at:
 
@@ -218,7 +218,7 @@ True will command TorsScan to parse all of the important quantum chemistry (and 
 
 
 
-Example transition state input xyz files:
+### Example transition state input xyz files:
 
 **In input.dat:
 
@@ -230,6 +230,7 @@ Use xyz as: start
 
 
 **In CC.xyz:
+
 8
 
 1 C          1.09278       -0.02695       -0.03725
@@ -242,19 +243,22 @@ Use xyz as: start
    H          2.98920       -0.27058       -1.03220
 
 **In [CH3].geo:
+
    C          1.15421        0.14357        0.13126
    H          0.64459       -0.52593        0.81229
    H          0.64457        1.01959       -0.24933
    H          2.17554       -0.05966       -0.16467
+
 or
-   H          0.64459       -0.52593        0.81229
+
+  H          0.64459       -0.52593        0.81229
 4 C          1.15421        0.14357        0.13126
    H          0.64457        1.01959       -0.24933
    H          2.17554       -0.05966       -0.16467
 
 
 
-*
+
 **My job didn’t complete. What happened?
 
 So you followed all of the instructions and have a good input file but something still broke.  We have a few places to check to see what went wrong.  First I advise looking at the TorsScan output.  Did it break in the reac1-prod2.dat builds? Did you tell it you would provide an input file that you didn’t (<SMILES>.xyz, geo, anharm.log etc)? Make sure its there. Also, check to make sure your SMILES name is correct.  If it made it past that point: did it print your error and immediately stop? Maybe it was missing an executable (it should print that if so). Check the dependencies listed in section 3. Did it break when running mess?   Check to see if the me_files directory is populated. If that’s all good make sure you have the right executables for the thermochemistry computations. If it didn’t write the me_files, that means probably something went wrong in the EStokTP computation. Let’s check there… 
