@@ -60,7 +60,7 @@ TorsScan can only generate the input for abstractions. Default is blank, which m
 
 
 
-**No. of transition states: **
+**No. of transition states:**
 
 Specify the number of transition states. 0 and 1 are self explanatory, 2 and 3 will generate van der Waals wells. Default is 0.  When running a transition state, EStokTP needs to know the i,j,k sites.  Either have an rmg.dat file for reac1 in your working directory or add an xyz or geo file (and set Use QTC xyz in the next section to True)  for reac1 in your working directory and edit it so that there is a 1 and a space before the atom that will be losing the hydrogen, a 2 and a space before the hydrogen that will be abstracted, and a 3 and a space before a different atom that is connected to the atom that is losing the hydrogen.  If the second reactant is O, OH, H, HO2, or O2, you do not need an xyz or geo file for reac2.  Otherwise provide a xyz or geo for reac2 (labeled <SMILES>.xyz) and put a 4 and a space before the atom that will abstract the hydrogen OR put that line at the top of the geometry and a 4 will not be needed. An example of these files is provided at the end of this document.
 
@@ -69,7 +69,7 @@ Specify the number of transition states. 0 and 1 are self explanatory, 2 and 3 w
 
 ### GEOMETRY OPTIONS
 
-**Use QTC xyz: **
+**Use QTC xyz:**
 
 A user can choose to use an xyz or geo file instead of having OpenBabel generate it from the SMILES string by setting this keyword to True, prog/method/basis, or logfilename.log.  Inappropriately named, the xyz for this keyword does not need to come from QTC. Using true will mean that the xyz or geo are in the working directory and are named <SMILES>.dat (geo files do not have the extra two lines at the top with the first having the number of atoms and the second being blank/comment). Using <logfilename>.log will make TorsScan parse out the coordinates from a Molpro or Gaussian job (Note that using TorsScan for more than one species will break this method until I update it to use <SMILES>.log instead of <logfilename>.log).  Prog/method/basis will search in the PACC database for an xyz or geo of each SMILES molecule.  Default is false.
 
@@ -169,7 +169,7 @@ The first column is a list of all of the EStokTP module names.  You can delete r
 
 ### THERMO OPTIONS
 
-**Perform all thermochemistry?: **
+**Perform all thermochemistry?:**
 
 True or false to run heat of formation code and if me_files are produced during EStokTP computation (the 1dTau has successfully completed) then it will execute mess’s partition function code, thermp, pac99, and produce a chemkin file.  The resulting files will have the name <SMILES>.pf (pf input) <SMILES>.dat (pf output), thermp.dat, thermp.out, <SMILES>.i97, <SMILES>.o97,  and <SMILES>.ckin. Default is true.
 
