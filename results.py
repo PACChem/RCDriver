@@ -1,16 +1,18 @@
 #!/usr/bin/python
 
 import os
-import sys
-sys.path.insert(0, '/home/elliott/Packages/QTC/')
-import patools as pa
-import iotools as io
-import obtools as ob
 
 class RESULTS:
-    def __init__(self, args):
+    def __init__(self, args, paths):
         self.args = args
         self.set_levels()
+
+        import sys
+        sys.path.insert(0, paths['qtc'])
+        global pa, io, ob
+        import patools as pa
+        import iotools as io
+        import obtools as ob
  
     def set_levels(self):
         optlevel = ''
@@ -142,7 +144,7 @@ class RESULTS:
                 io.db_store_opt_prop(pfreqs, species,'phrm', database, optprog, optmethod, optbasis)
         return printstr
 
-    def parse_thermo(self, n, species, thermo):
+    def parse_thermo(self, n, species):
         printstr = ''
         optprog, optmethod, optbasis = self.optlevel.split('/')
         if self.enlevel == 'optlevel':
@@ -153,13 +155,13 @@ class RESULTS:
             prog, method, basis = self.enlevel.split('/') 
     
         if self.args.anharm != 'false':
-            anpfr     = ', '.join('%4.4f' % freq for freq in thermo.anfreqs[n-1])
+            anpfr     = ', '.join('%4.4f' % freq for freq in self.anfreqs[n-1])
             pxmat     =('\n\t'.join(['\t'.join(['%3.3f'%item for item in row]) 
-                        for row in thermo.anxmat[n-1]]))
+                        for row in rs.anxmat[n-1]]))
             printstr += '\nAnharmonic Frequencies  (cm-1):\t' + anpfr
             printstr += '\nX matrix:\n\t' + pxmat #+   anxmat[i-1]
-        printstr += '\nHeat of formation(  0K): {0:.2f} kcal / {1:.2f}  kJ\n'.format(thermo.dH0[n-1],   thermo.dH0[n-1]/.00038088/ 627.503)
-        printstr +=   'Heat of formation(298K): {0:.2f} kcal / {1:.2f}  kJ\n'.format(float(thermo.dH298[n-1]), float(thermo.dH298[n-1])/.00038088/ 627.503)
+        printstr += '\nHeat of formation(  0K): {0:.2f} kcal / {1:.2f}  kJ\n'.format(rs.dH0[n-1],   rs.dH0[n-1]/.00038088/ 627.503)
+        printstr +=   'Heat of formation(298K): {0:.2f} kcal / {1:.2f}  kJ\n'.format(float(rs.dH298[n-1]), float(rs.dH298[n-1])/.00038088/ 627.503)
         if self.args.store:
             database = self.args.database 
             if self.args.anharm != 'false':
@@ -168,8 +170,8 @@ class RESULTS:
                 io.db_store_sp_prop(pxmat, species,  'pxmat', database,  anprog, anmethod, anbasis, optprog, optmethod, optbasis) 
             if not io.check_file(io.db_sp_path(prog, method, basis, database, species, optprog, optmethod, optbasis) + '/' + species + '.hf298k'):
                 io.db_store_sp_prop('Energy (kcal)\tBasis\n----------------------------------\n',species,'hf298k',database, prog,method,basis, optprog, optmethod, optbasis)
-            if len(thermo.hfbasis) >= n+1:
-                io.db_append_sp_prop(str(thermo.dH298[n-1]) + '\t' + ', '.join(thermo.hfbasis[n]) + '\n', species, 'hf298k',database, prog,method,basis, optprog, optmethod, optbasis)
+            if len(rs.hfbases) >= n+1:
+                io.db_append_sp_prop(str(rs.dH298[n-1]) + '\t' + ', '.join(rs.hfbases[n]) + '\n', species, 'hf298k',database, prog,method,basis, optprog, optmethod, optbasis)
         return printstr
  
 #    def ts_parse(self, lines):
@@ -188,7 +190,7 @@ class RESULTS:
 #        freqs  = ', '.join(freq for freq in pa.freqs(lines)[::-1])
 #        return printstr
 
-    def get_results(self, thermo=None):
+    def get_results(self):
 
        printstr = printheader()
 
@@ -201,7 +203,7 @@ class RESULTS:
                lines2  = io.read_file('me_files/reac' +  str(i) + '_fr.me')
            printstr += self.parse(i, reac, lines, lines2)
            if self.thermo:
-               printstr += self.parse_thermo(i, reac, thermo)
+               printstr += self.parse_thermo(i, reac)
 
        for j,prod in enumerate(self.args.prods, start=1):
            lines  = ''
@@ -212,7 +214,7 @@ class RESULTS:
                lines2  = io.read_file('me_files/prod' +  str(j) + '_fr.me')
            printstr += self.parse(i+j-1, prod, lines, lines2)
            if self.thermo:
-               printstr += self.parse_thermo(i+j-1, prod, thermo)
+               printstr += self.parse_thermo(i+j-1, prod)
 
        #if args.nTS > 0:
        #    lines = io.read_file('geoms/tsgta_l1.log')

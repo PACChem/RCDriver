@@ -8,6 +8,7 @@ Parse all: True
 Manual species input
 ============
 Reactant list (SMILES): C_m1
+#Reactant list (SMILES): OO_m1
 Product  list (SMILES): 
 Reaction type:  
 No. of transition states: 0

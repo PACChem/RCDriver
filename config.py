@@ -54,9 +54,9 @@ class ARGS:
         self.xyzstart = 'start' #Optimized XYZ provided
 
         self.node     = 'debug' #Default node to run on in is debug (won't run)
-        self.coresh   = '16'    #Default high number of cores is 10
+        self.coresh   = '16'    #Default high number of cores is 16
         self.coresl   = '10'     #Default low number of cores is 10
-        self.mem   = '200'     #Default low number of cores is 10
+        self.mem   = '200'     #Default is 200 MW
 
         self.optoptions   = 'internal'     #Guassian options
         self.nsamps   = ''     #Number of MC sampling points

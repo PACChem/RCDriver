@@ -3,18 +3,24 @@
 import os
 import numpy as np
 import sys
-sys.path.insert(0, '/home/elliott/Packages/QTC/')
+import obtools as ob
 import patools as pa
 import iotools as io
-import obtools as ob
 
 class MOL:
     def __init__(self,paths, opts,typemol = 'reac'):
-         
+        """
+        MOL object is reac, prod, or ts.
+        """ 
+        self.typemol    = typemol
         self.paths      = paths
         self.convert    = paths['x2z'] 
+        global ob, pa, io
+        sys.path.insert(0, paths['qtc'])
+        import obtools as ob
+        import iotools as io
+        import patools as pa
 
-        self.typemol    = typemol
         #OPTIONS##############################
         self.nsamps     = opts[0]    #number of MonteCarlo sampling points
         self.abcd       = opts[1]
@@ -26,109 +32,43 @@ class MOL:
         ######################################
         self.ijk        = [0, 0, 0]
         self.sort       = None
-
-    def build_obcart(self,smiles,mult):
-        """
-        Uses QTC interface by Murat Keceli to Openbabel to generate cartesian coorinate file based 
-        on SMILES string
-        """
-        filename    =  ob.get_smiles_filename(smiles) + '_m' + str(mult) + '.xyz'
-        mol         =  ob.get_mol(smiles,make3D=True)
-        lines       =  ob.get_xyz(mol).split('\n')
-        #lines[0] = 'Geometry ' + lines[0] + ' Angstrom'
-        #del lines[1]
-        io.write_file('\n'.join(lines), filename)
-        return 
-    
-    def build_obzmat(self,smiles):
-        """
-        Uses QTC interface by Murat Keceli to Openbabel to generate zmat file based on smile string
-        """
-        import obtools as ob
         
-        mol   = ob.get_mol(smiles,make3D=True)
-        zmat  = ob.get_zmat(  mol)
-        atoms, measure = zmat.split('\nVariables:\n')
-        atoms = atoms.split('\n')
-        for i in range(len(atoms)):
-            atoms[i] = atoms[i].split()
-        measure = measure.split('\n')
-        del measure[-1]
-        for i in range(len(measure)):
-            measure[i] = measure[i].upper().split('= ')
-        return atoms, measure
-
-    def read_cart(self, smiles):
-        smilesfilename = ob.get_smiles_filename(smiles)
-        if io.check_file('../' + smilesfilename + '_m' + str(self.mult) + '.xyz'):                
-            cartlines = io.read_file('../' + smilesfilename + '_m' + str(self.mult) + '.xyz').split('\n\n')[1]
-            cartlines =  str(len(cartlines.split('\n'))-1) + ' \n\n' + cartlines
-            io.write_file(cartlines,smilesfilename + '.xyz')
-        elif io.check_file('../' + smilesfilename + '.xyz'):                
-            cartlines = io.read_file('../' + smilesfilename + '.xyz').split('\n\n')[1]
-            cartlines =  str(len(cartlines.split('\n'))-1) + ' \n\n' + cartlines
-        elif io.check_file('../' + smilesfilename + '_m' + str(self.mult) + '.geo'):
-            cartlines = io.read_file('../' + smilesfilename + '_m' + str(self.mult) + '.geo')
-            cartlines = str(len(cartlines.split('\n'))-1) + ' \n\n' + cartlines
-        elif io.check_file('../' + smilesfilename + '.geo'):
-            cartlines = io.read_file('../' + smilesfilename + '.geo')
-            cartlines = str(len(cartlines.split('\n'))-1) + ' \n\n' + cartlines
-            io.write_file(cartlines,smilesfilename + '.xyz')
-        else:
-            print('ERROR: no .geo or .xyz provided')
-            print('...Using openbabel instead')
-            self.build_obcart(smiles, self.mult)
-            return 
-        #Find if i,j,k site is specified:
-        cartlines = cartlines.split('\n')
-        for i,line in enumerate(cartlines[1:], start=1):
-            if len(line.split()) > 4:
-                cartlines[i] = '   '.join(line.split()[1:])
-                if line.split()[0] == '1':
-                    self.ijk[1] = str(i)
-                elif line.split()[0] == '2':
-                    self.ijk[0] = str(i)
-                elif line.split()[0] == '3':
-                    self.ijk[2] = str(i)
-                elif line.split()[0] == '4':
-                    temp = cartlines[0]
-                    cartlines[0] = cartlines[i]
-                    del cartlines[i]
-                    cartlines.insert(0,temp)
-        cartlines = '\n'.join(cartlines)
-        io.write_file(cartlines,smilesfilename + '.xyz')
-        return 
-
+    
     def build_xyzfile(self, smiles):
 
         """
         Finds user-specified xyz or geo coordinates or generates openbabel coordinates and places
         them in data/<smiles>.xyz for x2z to use
+ 
+        INPUT:
+        smiles         -- SMILES name for molecule
+        OUTPUT:
+        smilesfilename -- name of cartesian coordinate file
         """
         smilesfilename = ob.get_smiles_filename(smiles) 
+        cartlines = ''
         if '_m' in smiles:
             smiles, self.mult = smiles.split('_m')
         else:
             self.mult = ob.get_multiplicity(ob.get_mol(smiles))
 
         if self.XYZ.lower() == 'false':
-            self.build_obcart(smiles,self.mult)
+            cartlines = build_obcart(smiles,self.mult)
 
         elif '.log' in self.XYZ.lower():
             cartlines = io.read_file('../' + self.XYZ)
-            io.write_file(pa.gaussian_xyz_foresk(cartlines),smilesfilename + '.xyz')
+            cartlines = pa.gaussian_xyz_foresk(cartlines)
 
         elif '.xyz' in self.XYZ.lower():
             if io.check_file(self.XYZ):
                 cartlines = io.read_file(self.XYZ)
-                io.write_file(cartlines,smilesfilename + '.xyz')
             else:
                 print('ERROR: no .geo or .xyz provided')
                 print('...Using openbabel instead')
-                self.build_obcart(smiles, self.mult)
+                cartlines = build_obcart(smiles, self.mult)
         
         elif len(self.XYZ.split('/') ) < 2:
-            cartlines = self.read_cart(smiles)
+            cartlines, self.ijk = read_cart(smiles, self.mult)
 
         elif len(self.XYZ.split('/')) > 2:  
             self.XYZ = self.XYZ.replace('g09','gaussian')
@@ -137,19 +77,17 @@ class MOL:
                 cartlines = io.db_get_opt_prop(smiles, 'geo', None, self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2])
                 cartlines = cartlines.replace('\n\n','')
                 cartlines = str(len(cartlines.split('\n'))) + ' \n\n' + cartlines
-                io.write_file(cartlines,smilesfilename + '.xyz'
-)
             elif io.check_file(io.db_opt_path(self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2], None, smiles) + '/' + smilesfilename + '.xyz'):
                 cartlines = io.db_get_opt_prop(smiles, 'xyz', None, self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2]).split('\n\n')[1]
                 cartlines = cartlines.split('\n')[0] + ' \n\n' + cartlines
-                io.write_file(cartlines,smilesfilename + '.xyz')
 
             else:
                 print ('\nERROR: No geometry found at ' + io.db_opt_path(self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2], None, smiles)
                                + smilesfilename + '.xyz' + '\n...building using OpenBabel instead')
-                self.build_obcart(smiles,self.mult)
+                cartlines = build_obcart(smiles,self.mult)
         else:
             print('\nERROR: You have not specified a valid way to get the coordinates.  Use false, true, smiles.log, smiles.geo, smiles.xyz, or prog/method/basis')
+        io.write_file(cartlines,smilesfilename + '.xyz')
         return smilesfilename
 
     def cart2zmat(self,smiles): 
@@ -188,7 +126,7 @@ class MOL:
             print('Please check that directory name and cartesian coordinate file name are equivalent')
             print('Please check that test_chem is in location: ' +  self.convert)
             print('Using OpenBabel zmat: no hindered rotors will be specified')
-            atoms, measure = self.build_obzmat(smiles)                     #If test_chem fails use openbabel to get zmat 
+            atoms, measure = build_obzmat(smiles)                     #If test_chem fails use openbabel to get zmat
             self.symnum = ' 1'
             self.ilin   = ' 0'
             if len(atoms) < 3:                                        #Linear if dihedral (NEEDS TO ACTUALLY BE COMPUTER)
@@ -318,10 +256,8 @@ class MOL:
         Builds reacn.dat or prodn.dat for EStokTP withh user defined nosmps (Monte Carlo sampling points
         for geometry search) and nhindsteps (number of points on the PES) 
         """
-        #Stochastic Geometry Search############
-
-        
         smilesfilename = ob.get_smiles_filename(smiles)
+        
         if self.typemol == 'reac' or self.typemol == 'prod':
             atoms, measure, angles  = update_interns(atoms,measure,angles)
             if not self.nsamps:
@@ -332,21 +268,17 @@ class MOL:
                     c = int(c)
                     d = int(d)
                     self.nsamps = str(min(a + b * c**self.nrotors, d))
+            #MC Parameters#############
             zmatstring  = 'nosmp dthresh ethresh\n'     
             zmatstring += self.nsamps + '  1.0  0.00001\n'
             #Torsional Scan Parameters#############
             zmatstring += tau_hind_str(atoms, angles, self.interval, self.nsteps, self.MDTAU)
-        
             #Size and linearity of molecule###########
             zmatstring += '\nnatom natomt ilin\n'
             ndummy = count_dummy(atoms)
             zmatstring += str(len(atoms)-ndummy) + ' ' + str(len(atoms)) + self.ilin + '\n'
 
-
         else:
-            sys.path.insert(0, '/home/elliott/scripts')
-            import get_sites
-            #Torsional Scan Parameters#############
             if not self.nsamps:
                 if len(self.abcd.split(',')) >3:
                     a, b, c, d = self.abcd.split(',')
@@ -355,10 +287,13 @@ class MOL:
                     c = int(c)
                     d = int(d)
                     self.nsamps = str(min(a + b * c**self.nrotors, d))
+            #MC Parameters#############
             zmatstring  = 'nosmp dthresh ethresh\n'     
             zmatstring += self.nsamps + '  1.0  0.00001\n'
+            #Torsional Scan Parameters#############
             zmatstring += tau_hind_str(atoms, angles, self.interval, self.nsteps, self.MDTAU)
             if n == 'ts':
+                import get_sites
                 #i,j,k sites###########################
                 zmatstring += '\nisite jsite ksite\n'
                 if self.ijk[0] != 0:
@@ -371,22 +306,19 @@ class MOL:
                         self.ijk[i] = str(int(self.sort[int(self.ijk[i])-1])+1)
                 zmatstring += '\n\nrmin rmax nr\n 1.0 2.5 8\n  -->aabs1,babs1,aabs2,babs2,babs3\n 90., 180., 90., 175., 90.\n'
 
-    
         #Typical Z-Matrix########################
         zmatstring += '\ncharge  spin  atomlabel\n'
         zmatstring += str(self.charge) + ' ' + str(self.mult) + '\n'
 
         if self.typemol == 'reac' or self.typemol == 'prod':
-
             for row in atoms:
                 for j in range(len(row)):
                     zmatstring += row[j] + ' '
                 zmatstring +='\n'
-    
             zmatstring += '\nintcoor'
 
             deletedangles=[]
-            for hin in angles:                                       #Deletes rotational angles from
+            for hin in angles:                                       #Deletes hindered angles from
                 for i,meas in enumerate(measure):                    #The internal coordinate list
                     if hin.lower().strip() == meas[0].lower().strip():
                         deletedangles.append(measure[i][1]) 
@@ -400,41 +332,9 @@ class MOL:
         zmatstring += '\nnelec\n1\n 0.  ' + str(self.mult) + '\n\nend\n'
 
         #Build Reac/Prodnum_opt.out for starting after level0 or level1
-        if '0' in self.xyzstart:
-            self.XYZ = self.XYZ.replace('g09','gaussian')
-            optim = 'opt geom           1'
-            for meas in measure:
-                optim += '\n\t' + meas[1]              
-            for i in range(len(angles)):
-                optim += '\n\t{}'.format(deletedangles[i])             
+        optim = build_optout(self.xyzstart, self.XYZ, measure, angles, deletedangles, smiles, smilesfilename)
+        io.write_file(optim, '../output/' + self.typemol + str(n) + '_opt.out')
 
-            if '.log' in self.XYZ:
-                E= str(pa.gaussian_energy(io.read_file('../' + self.XYZ)))
-            elif '.xyz' in self.XYZ:
-                E = io.read_file(self.XYZ).split('\n')[1]
-            elif io.check_file('../' + smilesfilename + '.ene'):
-                E = io.read_file('../' + smilesfilename + '.ene')
-            elif len(self.XYZ.split('/')) > 2 :
-                E = io.db_get_sp_prop(smilesfilename, 'ene', None, self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2]
-                                                          ,self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2])
-                if E == None:
-                    print('\nNo energy found at ' + io.db_sp_path(self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2], 
-                                  None, smiles,self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2]) + smilesfilename + '.ene')
-            else:
-                E = '0'
-            if E == None:
-               print  self.XYZ
-               if io.check_file(self.XYZ.replace('xyz','ene')):
-                   E = io.read_file(self.XYZ.replace('xyz','ene'))
-            optim += '\n\t' + E 
-            io.write_file(optim, '../output/' + self.typemol + str(n) + '_opt.out')
-        elif '1' in self.xyzstart:
-            optim = 'opt level1 0'
-            for meas in measure:
-                optim += '\n\t' + meas[1]                
-            for i in range(len(angles)):
-                optim += '\n\t{}'.format(deletedangles[i])              
-            io.write_file(optim, '../output/' + self.typemol + str(n) + '_opt.out')
 
         return zmatstring
 
@@ -719,4 +619,133 @@ def tau_hind_str(atoms, angles, interval, nsteps, mdtau):
             periodicity = find_period(atoms, angles[i])
             string += angles[i] + ' 0 ' + str(float(interval)/periodicity) + ' ' + str(int(round(float(nsteps)/periodicity))) + ' ' + str(periodicity)  + '\n'   
     return string
+
+def build_obzmat(smiles):
+    """
+    Uses QTC interface by Murat Keceli to Openbabel to generate zmat file based on smile string
+    
+    INPUT:
+    smiles -- SMILES string for molecule
+    OUTPUT:
+    atoms   -- The atoms and their connection to previous atoms (in EStokTP format)
+    measure -- The distance and angle parameters for the zmat   (in EStokTP format)
+    """
+    
+    mol   = ob.get_mol(smiles,make3D=True)
+    zmat  = ob.get_zmat(  mol)
+    atoms, measure = zmat.split('\nVariables:\n')
+    atoms = atoms.split('\n')
+    for i in range(len(atoms)):
+        atoms[i] = atoms[i].split()
+    measure = measure.split('\n')
+    del measure[-1]
+    for i in range(len(measure)):
+        measure[i] = measure[i].upper().split('= ')
+    return atoms, measure
+
+def build_obcart(smiles, mult):
+    """
+    Uses QTC interface by Murat Keceli to Openbabel to generate cartesian coordinates based 
+    on SMILES string
+
+    INPUT:
+    smiles -- SMILES string for molecule
+    mult   -- mult for molecule
+    OUTPUT:
+    lines  -- cartesian coordinates, formatted for a xyz file
+    """
+    filename    =  ob.get_smiles_filename(smiles) + '_m' + str(mult) + '.xyz'
+    mol         =  ob.get_mol(smiles,make3D=True)
+    lines       =  ob.get_xyz(mol)#.split('\n')
+    return lines
+ 
+def build_optout(xyzstart, XYZ, measure, angles, deletedangles, smiles, smilesfilename):
+    """
+    Creates the output/reac1_opt.out input for when an initial xyz is specified to start 
+    EStokTP with at either level0 or level1
+    """
+    optim = ''
+    if '0' in xyzstart:
+        XYZ = XYZ.replace('g09','gaussian')
+        optim = 'opt geom           1'
+        for meas in measure:
+            optim += '\n\t' + meas[1]              
+        for i in range(len(angles)):
+            optim += '\n\t{}'.format(deletedangles[i])             
+
+        if '.log' in XYZ:
+            E= str(pa.gaussian_energy(io.read_file('../' + XYZ)))
+        elif '.xyz' in XYZ:
+            E = io.read_file(XYZ).split('\n')[1]
+        elif io.check_file('../' + smilesfilename + '.ene'):
+            E = io.read_file('../' + smilesfilename + '.ene')
+        elif len(XYZ.split('/')) > 2 :
+            split = XYZ>split('/')
+            E = io.db_get_sp_prop(smilesfilename, 'ene', None, split[0], split[1], split[2],
+                                                         split[0], split[1], split[2])
+            if E == None:
+                print('\nNo energy found at ' + io.db_sp_path(split[0], split[1], split[2], 
+                        None, smiles, split[0], split[1], split[2]) + smilesfilename + '.ene')
+        else:
+            E = '0'
+
+        if E == None:
+           if io.check_file(XYZ.replace('xyz','ene')):
+               E = io.read_file(XYZ.replace('xyz','ene'))
+        optim += '\n\t' + E 
+
+    elif '1' in xyzstart:
+        optim = 'opt level1 0'
+        for meas in measure:
+            optim += '\n\t' + meas[1]                
+        for i in range(len(angles)):
+            optim += '\n\t{}'.format(deletedangles[i])             
+ 
+    return optim
+
+def read_cart(smiles, mult):
+    """
+    Finds and Reads an initial XYZ file (and set i,j,k sites for a transition state)
+    """
+
+    smilesfilename = ob.get_smiles_filename(smiles)
+    cartlines = ''
+    ijk = [0, 0, 0]
+
+    if io.check_file('../' + smilesfilename + '_m' + str(mult) + '.xyz'):                
+        cartlines = io.read_file('../' + smilesfilename + '_m' + str(mult) + '.xyz').split('\n\n')[1]
+        cartlines =  str(len(cartlines.split('\n'))-1) + ' \n\n' + cartlines
+    elif io.check_file('../' + smilesfilename + '.xyz'):                
+        cartlines = io.read_file('../' + smilesfilename + '.xyz').split('\n\n')[1]
+        cartlines =  str(len(cartlines.split('\n'))-1) + ' \n\n' + cartlines
+    elif io.check_file('../' + smilesfilename + '_m' + str(mult) + '.geo'):
+        cartlines = io.read_file('../' + smilesfilename + '_m' + str(mult) + '.geo')
+        cartlines = str(len(cartlines.split('\n'))-1) + ' \n\n' + cartlines
+    elif io.check_file('../' + smilesfilename + '.geo'):
+        cartlines = io.read_file('../' + smilesfilename + '.geo')
+        cartlines = str(len(cartlines.split('\n'))-1) + ' \n\n' + cartlines
+    else:
+        print('ERROR: no .geo or .xyz provided')
+        print('...Using openbabel instead')
+        cartlines = build_obcart(smiles, mult)
+        return cartlines, ijk
+
+    #Find if i,j,k site is specified:
+    cartlines = cartlines.splitlines()
+    for i,line in enumerate(cartlines[1:], start=1):
+        if len(line.split()) > 4:
+            cartlines[i] = '   '.join(line.split()[1:])
+            if line.split()[0] == '1':
+                ijk[1] = str(i)
+            elif line.split()[0] == '2':
+                ijk[0] = str(i)
+            elif line.split()[0] == '3':
+                ijk[2] = str(i)
+            elif line.split()[0] == '4':
+                temp = cartlines[0]
+                cartlines[0] = cartlines[i]
+                del cartlines[i]
+                cartlines.insert(0,temp)
+    cartlines = '\n'.join(cartlines)
+    return cartlines, ijk 
 
