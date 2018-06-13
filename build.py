@@ -3,9 +3,6 @@
 import os
 import numpy as np
 import sys
-import obtools as ob
-import patools as pa
-import iotools as io
 
 class MOL:
     def __init__(self,paths, opts,typemol = 'reac'):
@@ -24,11 +21,12 @@ class MOL:
         #OPTIONS##############################
         self.nsamps     = opts[0]    #number of MonteCarlo sampling points
         self.abcd       = opts[1]
-        self.interval   = opts[2]    #Interval for tors scan (should be same geometry as 0 degree)
-        self.nsteps     = opts[3]    #Number of points to take on PES
-        self.XYZ        = opts[4]    #if QTC provides XYZ, 'true' (smiles.xyz), logfile 'anything.log', or just use smiles 'false'
-        self.xyzstart   = opts[5]
-        self.MDTAU      = opts[6]
+        self.nodes      = opts[2]
+        self.interval   = opts[3]    #Interval for tors scan (should be same geometry as 0 degree)
+        self.nsteps     = opts[4]    #Number of points to take on PES
+        self.XYZ        = opts[5]    #if QTC provides XYZ, 'true' (smiles.xyz), logfile 'anything.log', or just use smiles 'false'
+        self.xyzstart   = opts[6]
+        self.MDTAU      = opts[7]
         ######################################
         self.ijk        = [0, 0, 0]
         self.sort       = None
@@ -68,7 +66,9 @@ class MOL:
                 cartlines = build_obcart(smiles, self.mult)
         
         elif len(self.XYZ.split('/') ) < 2:
-            cartlines, self.ijk = read_cart(smiles, self.mult)
+            cartlines, ijk = read_cart(smiles, self.mult)
+            if ijk[0] != 0:
+                self.ijk = ijk
 
         elif len(self.XYZ.split('/')) > 2:  
             self.XYZ = self.XYZ.replace('g09','gaussian')
@@ -259,7 +259,7 @@ class MOL:
         smilesfilename = ob.get_smiles_filename(smiles)
         
         if self.typemol == 'reac' or self.typemol == 'prod':
-            atoms, measure, angles  = update_interns(atoms,measure,angles)
+            atoms, measure, angles  = update_interns(n,atoms,measure,angles)
             if not self.nsamps:
                 if len(self.abcd.split(',')) >3:
                     a, b, c, d = self.abcd.split(',')
@@ -267,7 +267,8 @@ class MOL:
                     b = int(b)
                     c = int(c)
                     d = int(d)
-                    self.nsamps = str(min(a + b * c**self.nrotors, d))
+                    self.nsamps = min(a + b * c**self.nrotors, d)
+            self.nsamps = str(int(np.ceil(float(self.nsamps) / self.nodes)))
             #MC Parameters#############
             zmatstring  = 'nosmp dthresh ethresh\n'     
             zmatstring += self.nsamps + '  1.0  0.00001\n'
@@ -277,7 +278,6 @@ class MOL:
             zmatstring += '\nnatom natomt ilin\n'
             ndummy = count_dummy(atoms)
             zmatstring += str(len(atoms)-ndummy) + ' ' + str(len(atoms)) + self.ilin + '\n'
-
         else:
             if not self.nsamps:
                 if len(self.abcd.split(',')) >3:
@@ -286,7 +286,8 @@ class MOL:
                     b = int(b)
                     c = int(c)
                     d = int(d)
-                    self.nsamps = str(min(a + b * c**self.nrotors, d))
+                    self.nsamps = min(a + b * c**self.nrotors, d)
+            self.nsamps = str(np.ceil(float(self.nsamps) / self.nodes))
             #MC Parameters#############
             zmatstring  = 'nosmp dthresh ethresh\n'     
             zmatstring += self.nsamps + '  1.0  0.00001\n'
@@ -332,8 +333,9 @@ class MOL:
         zmatstring += '\nnelec\n1\n 0.  ' + str(self.mult) + '\n\nend\n'
 
         #Build Reac/Prodnum_opt.out for starting after level0 or level1
-        optim = build_optout(self.xyzstart, self.XYZ, measure, angles, deletedangles, smiles, smilesfilename)
-        io.write_file(optim, '../output/' + self.typemol + str(n) + '_opt.out')
+        if self.xyzstart == 1 or self.xyzstart == 2:
+            optim = build_optout(self.xyzstart, self.XYZ, measure, angles, deletedangles, smiles, smilesfilename)
+            io.write_file(optim, '../output/' + self.typemol + str(n) + '_opt.out')
 
 
         return zmatstring
@@ -535,21 +537,37 @@ def count_dummy(atoms):
           dummy += 1
   return dummy
 
-def update_interns(atoms, measure ,angles):
+def update_interns(n, atoms, measure ,angles):
     """
-    Converts internal coordinate information from test_chem to the form for
+    Converts internal coordinate information from x2z to the form for
     a Z-Matrix required to run EStokTP
     """
     if len(atoms) == 0:
         return atoms, measure, angles
     for index,atom in enumerate(atoms):
-        atoms[index][0] = atom[0].lower() + str(index+1)
+        if n > 1:
+            atoms[index][0] = atom[0].lower() + str(index+99)
+        else:
+            atoms[index][0] = atom[0].lower() + str( index+1)
         if len(atom) > 1:
             atoms[index][1] = atoms[int(atom[1])-1][0]
+            if n > 1:
+                atoms[index][2] = atoms[index][2].upper().replace('R','R10')
             if len(atom) > 3:
                 atoms[index][3] = atoms[int(atom[3])-1][0]
+                if n > 1:
+                    atoms[index][4] = atoms[index][4].upper().replace('A','A10')
                 if len(atom) > 5:
                     atoms[index][5] = atoms[int(atom[5])-1][0]
+                    if n > 1:
+                        atoms[index][6] = atoms[index][6].upper().replace('D','D10')
+    if n > 1:
+        for i in range(len(measure)):
+            measure[i][0] = measure[i][0].upper().replace('R','R10')
+            measure[i][0] = measure[i][0].upper().replace('A','A10')
+            measure[i][0] = measure[i][0].upper().replace('D','D10')
+        for i in range(len(angles)):
+            angles[i] = angles[i].upper().replace('D','D10')
     return atoms, measure, angles
 
 def find_period(zmat,hin):
@@ -711,7 +729,6 @@ def read_cart(smiles, mult):
     smilesfilename = ob.get_smiles_filename(smiles)
     cartlines = ''
     ijk = [0, 0, 0]
-
     if io.check_file('../' + smilesfilename + '_m' + str(mult) + '.xyz'):                
         cartlines = io.read_file('../' + smilesfilename + '_m' + str(mult) + '.xyz').split('\n\n')[1]
         cartlines =  str(len(cartlines.split('\n'))-1) + ' \n\n' + cartlines
@@ -742,10 +759,9 @@ def read_cart(smiles, mult):
             elif line.split()[0] == '3':
                 ijk[2] = str(i)
             elif line.split()[0] == '4':
-                temp = cartlines[0]
-                cartlines[0] = cartlines[i]
+                temp = cartlines[i]
                 del cartlines[i]
-                cartlines.insert(0,temp)
+                cartlines.insert(2,temp)
     cartlines = '\n'.join(cartlines)
     return cartlines, ijk 
 

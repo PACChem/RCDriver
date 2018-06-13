@@ -7,4 +7,3 @@ bin     = /home/elliott/bin
 estoktp = /lcrc/project/PACC/codes/EStokTP/exe/estoktp.x
 qtc     = /home/elliott/Packages/QTC/qtc
 x2z     = /home/elliott/bin/x2z
-#Required: qtc, x2z

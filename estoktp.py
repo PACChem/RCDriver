@@ -3,7 +3,7 @@
 import os
 import build 
 
-def build_files(args, paths, msg=''):
+def build_files(args, paths, nodes = 1, msg=''):
     """
     Runs the build functions for reacn.dat, prodn.dat, theory.dat, and estoktp.dat
     Requirements: QTC, Openbabel, Pybel (OR prepared cartesian coordinate files) and x2z
@@ -23,12 +23,11 @@ def build_files(args, paths, msg=''):
 
     if not 'MdTau' in args.jobs:
         args.mdtype = ''
-
     #Create Read, Prod, and TS objects from parameters
-    params = (args.nsamps, args.abcd, args.interval,args.nsteps,args.XYZ,args.xyzstart,args.mdtype)
+    params = (args.nsamps, args.abcd,nodes,args.interval,args.nsteps,args.XYZ,args.xyzstart,args.mdtype)
     Reac   = build.MOL(paths, params, 'reac')
     Prod   = build.MOL(paths, params, 'prod')
-    params = (args.nsamps,args.abcd,args.interval,args.nsteps,args.XYZ,'start',args.mdtype)
+    params = (args.nsamps,args.abcd,nodes,args.interval,args.nsteps,args.XYZ,'start',args.mdtype)
     TS     = build.MOL(paths, params,   'ts') 
 
     reacs = args.reacs
@@ -43,7 +42,7 @@ def build_files(args, paths, msg=''):
 
         msg += 'Task: Building reac{:g}.dat...'.format(i)
         msg  = log_msg(msg)
-        args.reacs, angles, atoms, stoichs, symnums, args.jobs = build_mol_dat(Reac, reacs, i, stoichs, symnums, args.jobs, args.mdtype)
+        args.reacs, angles, atoms, args.jobs, stoichs, symnums = build_mol_dat(Reac, reacs, i, stoichs, symnums, args.jobs, args.mdtype)
         TSprops = prep_reacs4TS(Reac, reac, i, key, angles, atoms, TSprops, args.nTS, paths)
         nsamps = Reac.nsamps
         msg += 'completed'
@@ -53,7 +52,7 @@ def build_files(args, paths, msg=''):
     for j, prod in enumerate(prods,start=1):
         msg += 'Task: Building prod{:g}.dat...'.format(j)
         msg  = log_msg(msg)
-        args.prods, angles, atoms, stoichs, symnums, args.jobs = build_mol_dat(Prod, prods, j, stoichs, symnums, args.jobs, args.mdtype)
+        args.prods, angles, atoms, args.jobs, stoichs, symnums = build_mol_dat(Prod, prods, j, stoichs, symnums, args.jobs, args.mdtype)
         msg += 'completed'
         msg  = log_msg(msg)
     
@@ -70,10 +69,10 @@ def build_files(args, paths, msg=''):
         if k == 0:
             zmatstring = TS.build(tstype[k], prod, TSprops[2], TSprops[3])
         else:
-            params = ('1', args.abcd,args.interval,args.nsteps,'False','start','MdTau' in args.jobs)
-            TS   = build.MOL(params,'ts') 
-            TS.charge = TScharge
-            TS.mult   = int(2.*TSspin + 1)
+            params = ('1', args.abcd,nodes,args.interval,args.nsteps,'False','start','MdTau' in args.jobs)
+            TS   = build.MOL(paths, params,'ts') 
+            TS.charge = TSprops[0]
+            TS.mult   = int(2.*TSprops[1] + 1)
             TS.symnum = ' 1'
             zmatstring =TS.build(tstype[k], [], [])
         zmat = tstype[k] + '.dat'
@@ -183,7 +182,7 @@ def prep_reacs4TS(MOL, reac, i, key, angles, atoms, tsprops, nTS, paths):
         if i == 1:
             sort = MOL.sort
         tsprops[0] += MOL.charge
-        tsprops[1] += 1./2 * (MOL.mult - 1)
+        tsprops[1] += 1./2 * (float(MOL.mult) - 1)
         if i == 1:
             tsprops[2], tsprops[3]  = angles, atoms
         elif reac in key:
@@ -212,7 +211,7 @@ def build_mol_dat(MOL, mollist, n, stoichs, symnums, jobs, mdtype='auto'):
     return mollist, angles, atoms, jobs, stoichs, symnums
 
 
-def execute(paths, node, msg = ''):
+def execute(paths, node, back = '', msg = ''):
     """
     Runs EStokTP on a given blues node (default debug)
     use 0 in input file to run on login
@@ -233,19 +232,24 @@ def execute(paths, node, msg = ''):
         msg += 'task skipped'
     else:
         ssh = get_paths(paths, 'ssh')
-        os.system('exec {3} -n {4} "cd `pwd`;{0}; {1}; {2}; {5} >& estoktp.log"'.format(gcc, intel, g09, ssh, node, estoktp))
+        os.system('exec {3} -n {4} "cd `pwd`;{0}; {1}; {2}; {5} >& estoktp.log {6}"'.format(gcc, intel, g09, ssh, node, estoktp, back))
         msg += 'completed'
     msg  = log_msg(msg)
     return
     
-def check_geoms(nsamps,msg=''):
+def check_geoms(qtc, name, nsamps,msg=''):
     """
     Checks MC geoms to make sure they are the same inchii as the starting species
     """
+    import sys
+    sys.path.insert(0,qtc)
+    import iotools as io
+    import obtools as ob
+
     msg += 'Task: Checking level0 geometries...'
     msg  = log_msg(msg)
     n = 2
-    filename =  'geoms/reac1_' + '1'.zfill(n) + '.xyz'
+    filename =  'geoms/'  + name + '_' + '1'.zfill(n) + '.xyz'
     lowfilename   = filename
     coords = io.read_file(filename)
     lowcoords = coords
@@ -253,7 +257,7 @@ def check_geoms(nsamps,msg=''):
     name =  ob.get_inchi_key(mol)
     energy = float(coords.split('\n')[1])
     for i in range(2, int(nsamps) + 1):
-        filename =  'geoms/reac1_' + '{}'.format(i).zfill(n) + '.xyz'
+        filename =  'geoms/' + name + '_' + '{}'.format(i).zfill(n) + '.xyz'
         if io.check_file(filename):
             coords = io.read_file(filename)
             mol = ob.get_mol(coords)
@@ -269,7 +273,7 @@ def check_geoms(nsamps,msg=''):
     io.write_file("\n".join(lowcoords.split("\n")[2:]),'geom.xyz')
     msg += 'Monte Carlo sampling successfully found geom.xyz!'
     msg  = log_msg(msg)
-    return 
+    return lowfilename
 
 def check_hrs(n, typ, msg=''):
     """
@@ -327,6 +331,7 @@ def me_file_abs_path():
     """
     Replaces relative path in mdhr file with absolute path
     """
+    import iotools as io
     if io.check_file('me_files/reac1_hr.me'):
         lines = io.read_file('me_files/reac1_hr.me')
         if "PotentialEnergySurface[kcal/mol]" in lines:

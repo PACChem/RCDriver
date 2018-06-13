@@ -88,7 +88,7 @@ def build_pfinput(args, msg = ''):
     prods    = args.prods    
     anharm   = args.anharm
     anovrwrt = args.anovrwrt
-    node     = args.node
+    node     = args.nodes[0]
     meths    = args.meths
     symnums  = args.symnums
 
@@ -132,7 +132,7 @@ def build_pfinput(args, msg = ''):
             msg += 'completed'
             msg  = log_msg(msg)
             pf = tf + ge + zp +  fr + hr
-            io.write_file(pf + '\n',reac.strip() + '.pf')
+            io.write_file(pf + '\n',reac.split('_m')[0].strip() + '.pf')
             msg += 'Task: Building MESS input file...'
             msg += 'completed'
             msg  = log_msg(msg)
@@ -164,7 +164,7 @@ def build_pfinput(args, msg = ''):
             msg += 'completed'
             msg  = log_msg(msg)
             pf = tf + ge + zp + fr + hr
-            io.write_file(pf+'\n', prod.strip() + '.pf')
+            io.write_file(pf+'\n', prod.split('_m')[0].strip() + '.pf')
             msg += 'Task: Building MESS input file...'
             msg += 'completed'
             msg  = log_msg(msg)
@@ -210,6 +210,7 @@ def run(args, paths):
     global pa, io, ob
     import patools as pa
     import iotools as io
+    import tctools as tc
     import obtools as ob
     import heatform as hf
     import shutil
@@ -226,7 +227,7 @@ def run(args, paths):
     enlevel  = args.enlevel
     hlen     = args.hlen
     hfbases = []
-    speciess,speclist = build_pfinput(args)
+    speciess,speclist, anfreqs, anxmat = build_pfinput(args)
     dH0   = []
     dH298 = []
     anharmbool = False
@@ -234,6 +235,8 @@ def run(args, paths):
     if anharm.lower() != 'false':
         anharmbool = True
     for i,species in enumerate(speciess):
+        if len(species.split('_m')) > 1:
+            species, mult = species.split('_m')[0], species.split('_m')[1]
         if qtchf[0].lower() not in ['false', 'auto']:
             if len(qtchf) >= i:
                 deltaH = float(qtchf[i])
@@ -295,7 +298,7 @@ def run(args, paths):
 
         
         print('completed')
-    return dH0, dH298, hfbases 
+    return dH0, dH298, hfbases, anfreqs, anxmat
 
 
 def get_anharm(rorp,i,natom,node,anlevel,anovrwrt,species, optlevel):
@@ -305,6 +308,7 @@ def get_anharm(rorp,i,natom,node,anlevel,anovrwrt,species, optlevel):
     """
     import anharm
     opts= {}
+    species = species.split('_m')[0]
     opts['smiles'    ] =  species
     opts['node'      ] =  node
     opts['theory'    ] =  anlevel

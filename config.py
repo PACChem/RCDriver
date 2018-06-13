@@ -53,7 +53,7 @@ class ARGS:
         self.XYZ      = 'False' #Optimized XYZ provided
         self.xyzstart = 'start' #Optimized XYZ provided
 
-        self.node     = 'debug' #Default node to run on in is debug (won't run)
+        self.nodes    = 'debug' #Default node to run on in is debug (won't run)
         self.coresh   = '16'    #Default high number of cores is 16
         self.coresl   = '10'     #Default low number of cores is 10
         self.mem   = '200'     #Default is 200 MW
@@ -127,7 +127,7 @@ class ARGS:
         self.reacs   = get_param(self.reacs   , 'Reactant'     , options).replace(' ','').split(',')
         self.prods   = get_param(self.prods   , 'Product'      , options).replace(' ','').split(',')
 
-        self.node    = get_param(self.node    , 'node'         , options)
+        self.nodes   = get_param(self.nodes    , 'node'         , options).replace(' ','').split(',')
         self.coresh  = get_param(self.coresh  , 'cores high'   , options)
         self.coresl  = get_param(self.coresl  , 'cores low'    , options)
         self.mem     = get_param(self.mem     , 'Memory'    , options)

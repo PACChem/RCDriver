@@ -157,11 +157,11 @@ class RESULTS:
         if self.args.anharm != 'false':
             anpfr     = ', '.join('%4.4f' % freq for freq in self.anfreqs[n-1])
             pxmat     =('\n\t'.join(['\t'.join(['%3.3f'%item for item in row]) 
-                        for row in rs.anxmat[n-1]]))
+                        for row in self.anxmat[n-1]]))
             printstr += '\nAnharmonic Frequencies  (cm-1):\t' + anpfr
             printstr += '\nX matrix:\n\t' + pxmat #+   anxmat[i-1]
-        printstr += '\nHeat of formation(  0K): {0:.2f} kcal / {1:.2f}  kJ\n'.format(rs.dH0[n-1],   rs.dH0[n-1]/.00038088/ 627.503)
-        printstr +=   'Heat of formation(298K): {0:.2f} kcal / {1:.2f}  kJ\n'.format(float(rs.dH298[n-1]), float(rs.dH298[n-1])/.00038088/ 627.503)
+        printstr += '\nHeat of formation(  0K): {0:.2f} kcal / {1:.2f}  kJ\n'.format(self.dH0[n-1],   self.dH0[n-1]/.00038088/ 627.503)
+        printstr +=   'Heat of formation(298K): {0:.2f} kcal / {1:.2f}  kJ\n'.format(float(self.dH298[n-1]), float(self.dH298[n-1])/.00038088/ 627.503)
         if self.args.store:
             database = self.args.database 
             if self.args.anharm != 'false':
@@ -170,8 +170,8 @@ class RESULTS:
                 io.db_store_sp_prop(pxmat, species,  'pxmat', database,  anprog, anmethod, anbasis, optprog, optmethod, optbasis) 
             if not io.check_file(io.db_sp_path(prog, method, basis, database, species, optprog, optmethod, optbasis) + '/' + species + '.hf298k'):
                 io.db_store_sp_prop('Energy (kcal)\tBasis\n----------------------------------\n',species,'hf298k',database, prog,method,basis, optprog, optmethod, optbasis)
-            if len(rs.hfbases) >= n+1:
-                io.db_append_sp_prop(str(rs.dH298[n-1]) + '\t' + ', '.join(rs.hfbases[n]) + '\n', species, 'hf298k',database, prog,method,basis, optprog, optmethod, optbasis)
+            if len(self.hfbases) >= n+1:
+                io.db_append_sp_prop(str(self.dH298[n-1]) + '\t' + ', '.join(self.hfbases[n]) + '\n', species, 'hf298k',database, prog,method,basis, optprog, optmethod, optbasis)
         return printstr
  
 #    def ts_parse(self, lines):
@@ -202,8 +202,6 @@ class RESULTS:
            if io.check_file('me_files/reac' +  str(i) + '_fr.me'):
                lines2  = io.read_file('me_files/reac' +  str(i) + '_fr.me')
            printstr += self.parse(i, reac, lines, lines2)
-           if self.thermo:
-               printstr += self.parse_thermo(i, reac)
 
        for j,prod in enumerate(self.args.prods, start=1):
            lines  = ''
@@ -228,9 +226,28 @@ class RESULTS:
        print printstr
        return
 
+    def get_thermo_results(self):
+
+       printstr = print_thermoheader()
+
+       for i,reac in enumerate(self.args.reacs, start=1):
+           if self.thermo:
+               printstr += self.parse_thermo(i, reac)
+       for j,prod in enumerate(self.args.prods, start=1):
+               printstr += self.parse_thermo(i+j-1, prod)
+       print printstr
+       return
+
 def printheader():
     printstr  = '\n\n ______________________'
     printstr += '\n||                    ||'
     printstr += '\n||       OUTPUT       ||'
+    printstr += '\n||____________________||\n\n'
+    return printstr
+
+def print_thermoheader():
+    printstr  = '\n\n ______________________'
+    printstr += '\n||                    ||'
+    printstr += '\n||       THERMO       ||'
     printstr += '\n||____________________||\n\n'
     return printstr
