@@ -8,6 +8,7 @@ Parse all: True
 Manual species input
 ============
 Reactant list (SMILES): C_m1
+#Reactant list (SMILES): OO_m1
 Product  list (SMILES): 
 Reaction type:  
 No. of transition states: 0
@@ -26,7 +27,7 @@ Use xyz as (start-starting geometry, 0-level0 geometry): start
 ==============
 BLUES options   
 ==============
-Run on node (0 if on login OR ssh-ed on node, d to debug): debug
+Run on node (0 if on login OR ssh-ed on node, d to debug): b437, b438
 No. of cores high: 16
 No. of cores  low: 10
 Memory: 500
