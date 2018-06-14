@@ -89,7 +89,7 @@ def build_files(args, paths, nodes = 1, msg=''):
     io.write_file(theostring, 'theory.dat')
     msg += 'completed'
     msg  = log_msg(msg)
-
+    
     #Builds estoktp.dat to restart at any step
     msg += 'Task: Building estoktp.dat...'
     msg  = log_msg(msg)

@@ -220,7 +220,7 @@ def run(args, paths):
     prods    = args.prods    
     anharm   = args.anharm
     anovrwrt = args.anovrwrt
-    node     = args.node
+    node     = args.nodes[0]
     meths    = args.meths
     hfbasis  = args.hfbasis
     qtchf    = args.qtchf

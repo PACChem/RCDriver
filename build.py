@@ -333,7 +333,7 @@ class MOL:
         zmatstring += '\nnelec\n1\n 0.  ' + str(self.mult) + '\n\nend\n'
 
         #Build Reac/Prodnum_opt.out for starting after level0 or level1
-        if self.xyzstart == 1 or self.xyzstart == 2:
+        if self.xyzstart == '0' or self.xyzstart == '1':
             optim = build_optout(self.xyzstart, self.XYZ, measure, angles, deletedangles, smiles, smilesfilename)
             io.write_file(optim, '../output/' + self.typemol + str(n) + '_opt.out')
 
@@ -461,7 +461,6 @@ def build_estoktp(params, jobs, nreacs, nprods, nTS):
     coresh    = params[2]
     coresl    = params[3]
     mem       = params[4]
-    
     eststring = ' Stoichiometry\t' + stoich.upper()
     
     PossibleRxns = ['addition','abstraction','isomerization','betascission','well','']
@@ -729,12 +728,15 @@ def read_cart(smiles, mult):
     smilesfilename = ob.get_smiles_filename(smiles)
     cartlines = ''
     ijk = [0, 0, 0]
-    if io.check_file('../' + smilesfilename + '_m' + str(mult) + '.xyz'):                
-        cartlines = io.read_file('../' + smilesfilename + '_m' + str(mult) + '.xyz').split('\n\n')[1]
-        cartlines =  str(len(cartlines.split('\n'))-1) + ' \n\n' + cartlines
+    import os
+    if io.check_file('../' + smilesfilename + '_m' + str(mult) + '.xyz'):               
+      #  cartlines = io.read_file('../' + smilesfilename + '_m' + str(mult) + '.xyz').split('\n\n')[1]
+      #  cartlines =  str(len(cartlines.split('\n'))-1) + ' \n\n' + cartlines
+        cartlines = io.read_file('../' + smilesfilename + '_m' + str(mult) + '.xyz')
     elif io.check_file('../' + smilesfilename + '.xyz'):                
-        cartlines = io.read_file('../' + smilesfilename + '.xyz').split('\n\n')[1]
-        cartlines =  str(len(cartlines.split('\n'))-1) + ' \n\n' + cartlines
+        #cartlines = io.read_file('../' + smilesfilename + '.xyz').split('\n\n')[1]
+        #cartlines =  str(len(cartlines.split('\n'))-1) + ' \n\n' + cartlines
+        cartlines = io.read_file('../' + smilesfilename +  '.xyz')
     elif io.check_file('../' + smilesfilename + '_m' + str(mult) + '.geo'):
         cartlines = io.read_file('../' + smilesfilename + '_m' + str(mult) + '.geo')
         cartlines = str(len(cartlines.split('\n'))-1) + ' \n\n' + cartlines

@@ -92,13 +92,14 @@ if __name__ == "__main__":
     samps = None
     if args.restart < 5:
         j,k = 0,0
-        if len(args.nodes) > 1 and "Opt" in args.jobs and args.restart < 1:
+        if len(args.nodes) > 0 and "Opt" in args.jobs and args.restart < 1:
             alljobs = args.jobs
             args.jobs = ["Opt"]
             stoichs, symnums = es.build_files(args, paths, len(args.nodes))
             for i, node in enumerate(args.nodes):
                 io.mkdir(node)
                 io.cd(node)
+                io.rmrf('data')
                 shutil.copytree('../data', 'data')
                 es.execute(paths, node, '&')
                 io.cd('..')
@@ -115,7 +116,7 @@ if __name__ == "__main__":
                         if len(io.read_file(filename)) < 20:
                             running = True
                             print 'waiting on node {}'.format(node)
-                time.sleep(30)
+                time.sleep(60)
             io.mkdir('geoms')
             for i, node in enumerate(args.nodes):
                 for geom in os.listdir(node + '/geoms'):
@@ -138,22 +139,65 @@ if __name__ == "__main__":
                 filename = filename.split('/')[1].split('_')[0] + '_opt_' +  filename.split('_')[1]
                 filename = 'output/' + filename.replace('.xyz','.out')
                 shutil.copy(filename, 'output/prod' + str(i+1) + '_opt.out')
+        if "1dTau" in args.jobs:
+            alljobs = args.jobs
+            negvals = True
+            while (negvals):
+                args.jobs = ["Opt_1", "1dTau"]
+                negvals = False
+                stoichs, symnums = es.build_files(args, paths)
+                es.execute(paths, args.nodes[0])
+                args.restart = 3
+                negvals = False
+                for i in range(len(args.reacs)):
+                    lowene = 0.
+                    lowenefile = None
+                    if io.check_file('me_files/reac' +  str(i+1) + '_hr.me'):
+                        hr = io.read_file('me_files/reac' + str(i+1) + '_hr.me')
+                        hr = hr.split('Rotor')
+                        startkey = 'Potential' 
+                        for j, rotor in enumerate(hr[1:]):
+                            pot = rotor.split(startkey)[1]
+                            pot = pot.splitlines()[1]
+                            for k, ene in enumerate(pot.split()):
+                                if float(ene) < lowene:
+                                    lowene = float(ene)
+                                    lowenefile = 'hr_geoms/geom_isp' + str(i+1).zfill(2) + '_hr' + str(j+1).zfill(2) + '_hpt' + str(k+1).zfill(2) + '.xyz'
+                    if lowenefile:
+                        negvals = True
+                        xyz = io.read_file(lowenefile)
+                        slabel = ob.get_slabel(ob.get_mol(xyz))
+                        io.write_file(xyz,slabel + '.xyz')
+                        args.restart = 1
+                        args.XYZ = 'true'
+                        args.xyzstart = '0'
+                        print 'Lower configuration found in 1dTau. Restarting at Level1. Saved geometry to {}'.format(slabel + '.xyz')
+                for l in range(len(args.prods)):
+                    lowene = 0.
+                    lowenefile = None
+                    if io.check_file('me_files/prod' +  str(l+1) + '_hr.me'):
+                        hr = io.read_file('me_files/prod' + str(l+1) + '_hr.me')
+                        hr = hr.split('Rotor')
+                        startkey = 'Potential' 
+                        for j, rotor in enumerate(hr[1:]):
+                            pot = rotor.split(startkey)[1]
+                            pot = pot.splitlines()[1]
+                            for k, ene in enumerate(pot.split()):
+                                if float(ene) < lowene:
+                                    lowene = ene
+                                    lowenefile = 'hr_geoms/geom_isp' + str(i+l+1).zfill(2) + '_hr' + str(j+1).zfill(2) + '_hpt' + str(k+1).zfill(2) + '.xyz'
+                    if lowenefile:
+                        negvals = True
+                        xyz = io.read_file(lowenefile)
+                        slabel = ob.get_slabel(ob.get_mol(xyz))
+                        io.write_file(xyz, slabel + '.xyz')
+                        args.restart = 1
+                        args.XYZ = 'true'
+                        args.xyzstart = '0'
+                        print 'Lower configuration found in 1dTau. Restarting at Level1. Saved geometry to {}'.format(slabel + '.xyz')
+            args.jobs = alljobs
         stoichs, symnums = es.build_files(args, paths)
         es.execute(paths, args.nodes[0])
-    if not samps:
-        samps = 1000
-    #check for failures
-    if ("Opt" in args.jobs and not "Opt_1" in args.jobs):
-        for i in range(len(args.reacs)):
-            filename = es.check_geoms(paths['qtc'], 'reac' + str(i+1), samps)
-            filename = filename.split('/')[1].split('_')[0] + '_opt_' +  filename.split('_')[1]
-            filename = 'output/' + filename.replace('.xyz','.out')
-            shutil.copy(filename, 'output/reac' + str(i+1) + '_opt.out')
-        for i in range(len(args.prods)):
-            filename = es.check_geoms(paths['qtc'], 'prod' + str(i+1), samps)
-            filename = filename.split('/')[1].split('_')[0] + '_opt_' +  filename.split('_')[1]
-            filename = 'output/' + filename.replace('.xyz','.out')
-            shutil.copy(filename, 'output/prod' + str(i+1) + '_opt.out')
     if ("1dTau" in args.jobs or 'MdTau' in args.jobs):
         for i in range(len(args.reacs)):
             es.check_hrs(i+1,'reac')
