@@ -2,6 +2,8 @@
 
 Sarah N. Elliott
 
+Murat Keceli
+
 Stephen J. Klippenstein
 
 TorsScan is a set of python modules that when given a short input file (that requests a SMILES molecule name and levels of theory) will perform hindered rotor scans and transition state searches.  Specifically it sets up and performs EStokTP computations and subsequently parses the resulting output files to compute 0 K heats of formation and updated anharmonic constants.  Given the option, TorsScan will use those computations to generate mess input and can run the mess partition 
