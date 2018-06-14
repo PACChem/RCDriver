@@ -15,7 +15,7 @@ No. of transition states: 0
 ==============
 Geometry options 
 ===============
-Use QTC xyz: False
+Use input xyz: False
             (True  - qtc provides nicely  printed optimized  geometry,  
              False - make openbabel xyz from smiles
              prog/method/basis - use xyz stored in directory (recommended)
@@ -29,7 +29,7 @@ BLUES options
 Run on node (0 if on login OR ssh-ed on node, d to debug): debug
 No. of cores high: 16
 No. of cores  low: 10
-
+Memory: 500
 
 ================
 EStoKTP options
