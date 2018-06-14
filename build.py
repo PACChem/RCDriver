@@ -543,7 +543,7 @@ def build_theory(meths,nTS, optoptions):
                 if meth[0] == 'hind_rotor':
                     theory += '\n ' + meth[2] + rpopt + allint
                 theory += '\n\n'
-        else:
+        elif meth[0].lower() != 'ktp':
             print meth[0] + ' is not a recognized program.\n'
             
     theory += 'End'
