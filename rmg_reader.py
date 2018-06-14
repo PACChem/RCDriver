@@ -1,12 +1,13 @@
 
 import os
 import sys
-sys.path.insert(0, '/home/elliott/Packages/QTC/')
-import iotools as io
 import re
 
 class REACTION:
-    def __init__(self,lines):
+    def __init__(self,lines, paths):
+        sys.path.insert(0, paths['qtc'])
+        global io
+        import iotools as io
         self.label     = get_label(lines)
         self.reactype  = get_type(lines)
         self.reactants = get_reactants(lines)

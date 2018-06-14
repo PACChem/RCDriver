@@ -1,7 +1,6 @@
 # TorsScan
 
-Sarah N. Elliott
-
+Sarah N. Elliott, Murat Keceli, and Stephen J. Klippenstein
 
 TorsScan is a set of python modules that when given a short input file (that requests a SMILES molecule name and levels of theory) will perform hindered rotor scans and transition state searches.  Specifically it sets up and performs EStokTP computations and subsequently parses the resulting output files to compute 0 K heats of formation and updated anharmonic constants.  Given the option, TorsScan will use those computations to generate mess input and can run the mess partition 
 function, thermp, pac99 executables to generate 298 K heats of formation, heat capacities, and NASA polynomials. 
@@ -13,24 +12,16 @@ function, thermp, pac99 executables to generate 298 K heats of formation, heat c
 Users can clone TorsScan from https://github.com/snelliott/TorsScan or simply use its location at  /home/elliott/Packages/TorsScan on Blues.  
 
 
-
-## (2) INPUT/OUTPUT
-
-The main executable is torsional_scan.py.  It will need an inputfile (an example is located at /home/elliott/Packages/TorsScan/input.dat).  If no inputfile is specified (e.g., the command is not  torsional_scan.py myinputfile.txt)  the code will automatically look for a file named input.dat.  TorsScan does not save its output so be sure to tell it (torsional_scan.py > myoutputfile.dat) if you want the output saved.  
-
-
-
 ## (3) DEPENDENCIES
 
-TorsScan relies on EStokTP developed by Carlo Cavallotti and Stephen Klippenstein.  Users will need to be a member of the PACC group on blues to execute this code.
-TorsScan uses the iotools (input/output tools), obtools (openbabel tools), and patools (parsing tools) built by Murat Keceli and Sarah Elliott that can be found in /home/keceli/qtc, /home/elliott/Packages/QTC/, or cloned from  https://github.com/keceli/QTC. Obtools, in turn, needs OpenBabel with pybel python bindings.  You will need to either install that by following these easy instructions https://pypi.python.org/pypi/openbabel  or by adding to your bashrc: export PYTHONPATH=$PYTHONPATH:/home/keceli/openbabel-2.4.1/install/lib/python2.7/site-packages.  
+TorsScan relies on EStokTP developed by Carlo Cavallotti, Matteo Pelucchi, and Stephen Klippenstein. TorsScan uses the iotools (input/output tools), obtools (openbabel tools), and patools (parsing tools), built by Murat Keceli and Sarah Elliott that can be found in /home/keceli/qtc, /home/elliott/Packages/QTC/, or cloned from  https://github.com/keceli/QTC. Obtools, in turn, needs OpenBabel with pybel python bindings.  You will need to either install that by following these instructions https://pypi.python.org/pypi/openbabel  or by adding to your bashrc: export PYTHONPATH=$PYTHONPATH:/home/keceli/openbabel-2.4.1/install/lib/python2.7/site-packages.  
 The zmat builder uses x2z by Yuri Georgievski.  This can be cloned from https://github.com/PACChem/x2z. 
-The thermochemistry computations in TorsScan uses heatform by Sarah Elliott, tctools by Murat Keceli, pac99 by Bonnie Mcbride, thermp by Stephen Klippenstein, and mess by Yuri Georgievski.  TorsScan should find these, but if it fails to try adding /home/elliott/bin/ to your path. The partition function mess code will break if the right compilers are not in your path.  Soft add +gcc-5.3 and +intel-16.0.0 if you are having problems there. If heatform breaks on a Gaussian computation try soft add+g09.  
+The thermochemistry computations in TorsScan uses heatform, anharm, and tctools also on the QTC github, pac99 by Bonnie Mcbride, thermp by Stephen Klippenstein, and mess by Yuri Georgievski. 
 
 
-## (4) THE INPUT FILE
+## (3) INPUT
 
-The input file separates keywords from their input values with a colon.  The keywords are case sensitive but the values are not.  
+The main executable is torsional_scan.py.  It will need an inputfile (an example is located at /home/elliott/Packages/TorsScan/input.dat).  If no inputfile is specified (e.g., the command is not  torsional_scan.py myinputfile.txt)  the code will automatically look for a file named input.dat. The input file separates keywords from their input values with a colon.  The keywords are case sensitive but the values are not.  
 
 
 ### SPECIES INPUT
