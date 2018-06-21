@@ -271,3 +271,14 @@ First go to output/estoktp.out and search for ‘starting’.  What was the last
 **Want to know more about what TorsScan is doing?**
 
 The majority of the files TorsScan generates are in the data directory.  To understand the contents of these files please view the EStokTP manual (put link here when available).  All of the python files in TorsScan (torsional_scan.py, build.py, anharm.py, and /home/elliott/Packages/QTC/heatform.py) are somewhat commented so feel free to dig around!  You can direct questions to Sarah Elliott.
+
+## (4) ACKNOWLEDGEMENT
+This research was supported by the Exascale Computing Project (ECP), Project Number: 17-SC-20-SC -- a collaborative effort of two DOE organizations, the Office of Science and the National Nuclear Security Administration, responsible for the planning and preparation of a capable exascale ecosystem including software, applications, hardware, advanced system engineering, and early test bed platforms to support the nation's exascale computing imperative -- and by the DOE Krell Computational Science Graduate Fellowship Grant Number DE-FG02-97ER25308. 
+
+
+## (5) COPYRIGHT
+Copyright 2018 Sarah N Elliott, Murat Keceli, and Stephen J Klippenstein
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
