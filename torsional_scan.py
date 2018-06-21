@@ -91,54 +91,95 @@ if __name__ == "__main__":
     symnums = []
     samps = None
     if args.restart < 5:
-        j,k = 0,0
+        j,k = [0,0,0,0,0,0,0],[0,0,0,0,0,0,0]
+        index = 0
         if len(args.nodes) > 0 and "Opt" in args.jobs and args.restart < 1:
             alljobs = args.jobs
             args.jobs = ["Opt"]
             stoichs, symnums = es.build_files(args, paths, len(args.nodes))
-            for i, node in enumerate(args.nodes):
-                io.mkdir(node)
-                io.cd(node)
-                io.rmrf('data')
-                shutil.copytree('../data', 'data')
-                es.execute(paths, node, '&')
-                io.cd('..')
-            running = True
-            import time
-            while (running):
-                running = False
-                for node in args.nodes:
-                    filename = node + '/output/estoktp.out'
-                    if not io.check_file(filename):
-                        running = True
-                        print 'waiting on node {}'.format(node)
-                    else: 
-                        if len(io.read_file(filename)) < 20:
+            if not 'd' in args.nodes[0]:
+                for i, node in enumerate(args.nodes):
+                    io.rmrf(node)
+                    io.mkdir(node)
+                    io.cd(node)
+                    shutil.copytree('../data', 'data')
+                    es.execute(paths, node, '&')
+                    io.cd('..')
+                running = True
+                import time
+                while (running):
+                    running = False
+                    for node in args.nodes:
+                        filename = node + '/output/estoktp.out'
+                        if not io.check_file(filename):
                             running = True
                             print 'waiting on node {}'.format(node)
-                time.sleep(60)
-            io.mkdir('geoms')
-            for i, node in enumerate(args.nodes):
-                for geom in os.listdir(node + '/geoms'):
-                    j += 1
-                    shutil.copy(node + '/geoms/' + geom, 'geoms/{}_{}.xyz'.format(geom.split('_')[0], str(j).zfill(2)))
-                for geom in os.listdir(node + '/output'):
-                    if 'opt_' in geom:
-                        k += 1
-                        shutil.copy(node + '/output/' + geom, 'output/{}opt_{}.out'.format(geom.split('opt')[0], str(k).zfill(2)))
-            samps = j
-            args.restart = 1
-            args.jobs = alljobs
-            for i in range(len(args.reacs)):
-                filename = es.check_geoms(paths['qtc'], 'reac' + str(i+1), samps)
-                filename = filename.split('/')[1].split('_')[0] + '_opt_' +  filename.split('_')[1]
-                filename = 'output/' + filename.replace('.xyz','.out')
-                shutil.copy(filename, 'output/reac' + str(i+1) + '_opt.out')
-            for i in range(len(args.prods)):
-                filename = es.check_geoms(paths['qtc'], 'prod' + str(i+1), samps)
-                filename = filename.split('/')[1].split('_')[0] + '_opt_' +  filename.split('_')[1]
-                filename = 'output/' + filename.replace('.xyz','.out')
-                shutil.copy(filename, 'output/prod' + str(i+1) + '_opt.out')
+                        else: 
+                            if len(io.read_file(filename)) < 20:
+                                running = True
+                                print 'waiting on node {}'.format(node)
+                    time.sleep(60)
+                io.mkdir('geoms')
+                for i, node in enumerate(args.nodes):
+                    for geom in os.listdir(node + '/geoms'):
+                        if 'reac1' in geom:
+                            j[0] += 1
+                            index = j[0]
+                        elif 'reac2' in geom:
+                            j[1] += 1
+                            index = j[1]
+                        elif 'prod1' in geom:
+                            j[2] += 1
+                            index = j[2]
+                        elif 'prod2' in geom:
+                            j[3] += 1
+                            index = j[3]
+                        elif 'ts' in geom:
+                            j[4] += 1
+                            index = j[4]
+                        elif 'wellr' in geom:
+                            j[5] += 1
+                            index = j[5]
+                        elif 'wellp' in geom:
+                            j[6] += 1
+                            index = j[6]
+                        shutil.copy(node + '/geoms/' + geom, 'geoms/{}_{}.xyz'.format(geom.split('_')[0], str(index).zfill(2)))
+                    for geom in os.listdir(node + '/output'):
+                        if 'opt_' in geom:
+                            if 'reac1' in geom:
+                                k[0] += 1
+                                index = k[0]
+                            elif 'reac2' in geom:
+                                k[1] += 1
+                                index = k[1]
+                            elif 'prod1' in geom:
+                                k[2] += 1
+                                index = k[2]
+                            elif 'prod2' in geom:
+                                k[3] += 1
+                                index = k[3]
+                            elif 'ts' in geom:
+                                k[4] += 1
+                                index = k[4]
+                            elif 'wellr' in geom:
+                                k[5] += 1
+                                index = k[5]
+                            elif 'wellp' in geom:
+                                k[6] += 1
+                                index = k[6]
+                            shutil.copy(node + '/output/' + geom, 'output/{}opt_{}.out'.format(geom.split('opt')[0], str(index).zfill(2)))
+                args.restart = 1
+                args.jobs = alljobs
+                for i in range(len(args.reacs)):
+                    filename = es.check_geoms(paths['qtc'], 'reac' + str(i+1), j[i])
+                    filename = filename.split('/')[1].split('_')[0] + '_opt_' +  filename.split('_')[1]
+                    filename = 'output/' + filename.replace('.xyz','.out')
+                    shutil.copy(filename, 'output/reac' + str(i+1) + '_opt.out')
+                for i in range(len(args.prods)):
+                    filename = es.check_geoms(paths['qtc'], 'prod' + str(i+1), j[i+len(args.reacs)])
+                    filename = filename.split('/')[1].split('_')[0] + '_opt_' +  filename.split('_')[1]
+                    filename = 'output/' + filename.replace('.xyz','.out')
+                    shutil.copy(filename, 'output/prod' + str(i+1) + '_opt.out')
         if "1dTau" in args.jobs:
             alljobs = args.jobs
             negvals = True
@@ -216,7 +257,6 @@ if __name__ == "__main__":
 
     if args.parseall.lower() == 'true':
          rs.get_results()
-
     #######  Build and run thermo  #########
     ########################################
     import thermo

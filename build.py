@@ -12,11 +12,12 @@ class MOL:
         self.typemol    = typemol
         self.paths      = paths
         self.convert    = paths['x2z'] 
-        global ob, pa, io
+        global ob, pa, io, qc
         sys.path.insert(0, paths['qtc'])
         import obtools as ob
         import iotools as io
         import patools as pa
+        import qctools as qc
 
         #OPTIONS##############################
         self.nsamps     = opts[0]    #number of MonteCarlo sampling points
@@ -157,10 +158,9 @@ class MOL:
 
         #Rearrangement
         props, order = props.split('Z-Matrix atom order:')
-        self.sort = []
+        self.sort = {}
         for index in order.split('\n')[1:-2]:
-            self.sort.append(index.split('>')[1])
-
+            self.sort[int(index.split('>')[1])] = str(index.split('-->')[0])
         #rotational groups
         groups = ''
         if len(lines.split("Rotational groups:")) > 1:
@@ -286,7 +286,7 @@ class MOL:
                     b = int(b)
                     c = int(c)
                     d = int(d)
-                    self.nsamps = min(a + b * c**self.nrotors, d)
+                    self.nsamps = min(a + b * c**1, d)
             self.nsamps = str(np.ceil(float(self.nsamps) / self.nodes))
             #MC Parameters#############
             zmatstring  = 'nosmp dthresh ethresh\n'     
@@ -297,14 +297,14 @@ class MOL:
                 import get_sites
                 #i,j,k sites###########################
                 zmatstring += '\nisite jsite ksite\n'
+                if self.sort:
+                    for i in range(3):
+                        self.ijk[i] = self.sort[int(self.ijk[i])-1]
                 if self.ijk[0] != 0:
                     zmatstring += ' '.join(self.ijk)
                 else:
                     lines = io.read_file('../rmg.dat')
                     zmatstring += ' '.join(get_sites.sites(lines))
-                if self.sort:
-                    for i in range(3):
-                        self.ijk[i] = str(int(self.sort[int(self.ijk[i])-1])+1)
                 zmatstring += '\n\nrmin rmax nr\n 1.0 2.5 8\n  -->aabs1,babs1,aabs2,babs2,babs3\n 90., 180., 90., 175., 90.\n'
 
         #Typical Z-Matrix########################
@@ -456,11 +456,68 @@ def build_estoktp(params, jobs, nreacs, nprods, nTS):
     """
     Builds estoktp.dat
     """
-    stoich    = params[0]
+    stoichs    = params[0]
     reactype  = params[1]
     coresh    = params[2]
     coresl    = params[3]
     mem       = params[4]
+
+    fullstoich = {}
+    if len(stoichs) > 2:
+        stoichs = stoichs[:2]
+    for stoich in stoichs:
+        stoich = qc.get_atom_stoich(stoich)
+        if 'C' in stoich:
+           if 'C' in fullstoich:
+               fullstoich['C'] += stoich['C']
+           else:
+               fullstoich['C']  = stoich['C']
+        if 'H' in stoich:
+           if 'H' in fullstoich:
+               fullstoich['H'] += stoich['H']
+           else:
+               fullstoich['H']  = stoich['H']
+        if 'O' in stoich:
+           if 'O' in fullstoich:
+               fullstoich['O'] += stoich['O']
+           else:
+               fullstoich['O']  = stoich['O']
+        if 'N' in stoich:
+           if 'N' in fullstoich:
+               fullstoich['N'] += stoich['N']
+           else:
+               fullstoich['N']  = stoich['N']
+        if 'S' in stoich:
+           if 'S' in fullstoich:
+               fullstoich['S'] += stoich['S']
+           else:
+               fullstoich['S']  = stoich['S']
+    stoich = ''
+    if 'C' in fullstoich:
+       if fullstoich['C'] > 1:
+           stoich += 'C{:g}'.format(fullstoich['C'])
+       else:
+           stoich += 'C'
+    if 'H' in fullstoich:
+       if fullstoich['H'] > 1:
+           stoich += 'H{:g}'.format(fullstoich['H'])
+       else:
+           stoich += 'H'
+    if 'O' in fullstoich:
+       if fullstoich['O'] > 1:
+           stoich += 'O{:g}'.format(fullstoich['O'])
+       else:
+           stoich += 'O'
+    if 'N' in fullstoich:
+       if fullstoich['N'] > 1:
+           stoich += 'N{:g}'.format(fullstoich['N'])
+       else:
+           stoich += 'N'
+    if 'S' in fullstoich:
+       if fullstoich['S'] > 1:
+           stoich += 'S{:g}'.format(fullstoich['S'])
+       else:
+           stoich += 'S'
     eststring = ' Stoichiometry\t' + stoich.upper()
     
     PossibleRxns = ['addition','abstraction','isomerization','betascission','well','']
@@ -617,7 +674,7 @@ def tau_hind_str(atoms, angles, interval, nsteps, mdtau):
     string += ' -->nametau, taumin, taumax\n'
     for angle in angles:
         periodicity = find_period(atoms, angle)
-        string += angle + ' 0 ' + interval + '\n'
+        string += angle + ' 0 ' + str(interval) + '\n'
 
     #1 and 2D HIND
     string += '\nnhind\n'
@@ -626,7 +683,6 @@ def tau_hind_str(atoms, angles, interval, nsteps, mdtau):
     for hin in angles:
         periodicity = find_period(atoms, hin)
         string += hin + ' 0 ' + str(float(interval)/periodicity)  + ' ' + str(int(round(float(nsteps)/periodicity))) + ' ' + str(periodicity)  + '\n'   
-
     if mdtau and len(angles) > 1:
         mdtau   = mdtau.strip('D').strip('d')
         string += '\nnhind' + mdtau + 'D\n'

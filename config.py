@@ -133,7 +133,7 @@ class ARGS:
         self.mem     = get_param(self.mem     , 'Memory'    , options)
 
         self.XYZ     = get_param(self.XYZ     , 'Use QTC'      , options)
-        self.XYZ     = get_param(self.XYZ     , 'Use input xyz'      , options)
+        self.XYZ     = get_param(self.XYZ     , 'Use input xyz', options)
         self.xyzstart= get_param(self.xyzstart, 'Use xyz as'   , options)
 
         self.optoptions  = get_param(self.optoptions  , 'Gaussian optim'     , options)

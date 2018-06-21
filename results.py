@@ -88,12 +88,14 @@ class RESULTS:
         """
         Parses, prints, and stores the quantum chemistry and thermochemistry output
         """
-        printstr = '=====================\n          '+species+'\n=====================\n'
+        printstr = '\n=====================\n          '+species+'\n=====================\n'
 
         optprog, optmethod, optbasis = self.optlevel.split('/')
         if self.enlevel == 'optlevel':
             prog   =  pa.get_prog(lines) 
-            method =  pa.method(lines).lower().lstrip('r')
+            method =  pa.method(lines)
+            if method:
+                method  = lower().lstrip('r')
             basis  =  pa.basisset(lines).lower() 
             energy = str(pa.energy(lines)[1]) 
         elif len(self.enlevel.split('/')) > 2 :
@@ -142,10 +144,10 @@ class RESULTS:
                 io.db_store_opt_prop(xyz,   species, 'xyz', database, optprog, optmethod, optbasis)
             if lines2:                                              
                 io.db_store_opt_prop(pfreqs, species,'phrm', database, optprog, optmethod, optbasis)
-        return printstr
+        return printstr 
 
     def parse_thermo(self, n, species):
-        printstr = ''
+        printstr = '\n=====================\n          '+species+'\n=====================\n'
         optprog, optmethod, optbasis = self.optlevel.split('/')
         if self.enlevel == 'optlevel':
             prog   =  optprog
@@ -193,7 +195,6 @@ class RESULTS:
     def get_results(self):
 
        printstr = printheader()
-
        for i,reac in enumerate(self.args.reacs, start=1):
            lines  = ''
            if io.check_file('geoms/reac' + str(i) + '_l1.log'):
@@ -201,8 +202,10 @@ class RESULTS:
            lines2  = ''
            if io.check_file('me_files/reac' +  str(i) + '_fr.me'):
                lines2  = io.read_file('me_files/reac' +  str(i) + '_fr.me')
-           printstr += self.parse(i, reac, lines, lines2)
-
+           if lines:
+               printstr += self.parse(i, reac, lines, lines2)
+           else:
+               printstr += '\nNo geoms/reac' + str(i) + '_l1.log'
        for j,prod in enumerate(self.args.prods, start=1):
            lines  = ''
            if io.check_file('geoms/prod' + str(i) + '_l1.log'):
@@ -210,9 +213,10 @@ class RESULTS:
            lines2 = ''
            if io.check_file('me_files/reac' +  str(j) + '_fr.me'):
                lines2  = io.read_file('me_files/prod' +  str(j) + '_fr.me')
-           printstr += self.parse(i+j-1, prod, lines, lines2)
-           if self.thermo:
-               printstr += self.parse_thermo(i+j-1, prod)
+           if lines:
+               printstr += self.parse(i+j-1, prod, lines, lines2)
+           else:
+               printstr += '\nNo geoms/prod' + str(j) + '_l1.log'
 
        #if args.nTS > 0:
        #    lines = io.read_file('geoms/tsgta_l1.log')
@@ -224,16 +228,18 @@ class RESULTS:
        #            lines = io.read_file('geoms/wellp_l1.log')
        #            printstr += ts_parse(2,lines)
        print printstr
-       return
+       return 
 
     def get_thermo_results(self):
 
        printstr = print_thermoheader()
 
        for i,reac in enumerate(self.args.reacs, start=1):
-           if self.thermo:
-               printstr += self.parse_thermo(i, reac)
+           printstr += self.parse_thermo(i, reac)
        for j,prod in enumerate(self.args.prods, start=1):
+           if self.args.nTS > 1:
+               printstr += self.parse_thermo(i+j, prod)
+           else:
                printstr += self.parse_thermo(i+j-1, prod)
        print printstr
        return

@@ -20,14 +20,14 @@ def build_files(args, paths, nodes = 1, msg=''):
     os.chdir('./data')
     stoichs= []
     symnums= []
-
+    mdtype =  args.mdtype 
     if not 'MdTau' in args.jobs:
-        args.mdtype = ''
+       mdtype = ''
     #Create Read, Prod, and TS objects from parameters
-    params = (args.nsamps, args.abcd,nodes,args.interval,args.nsteps,args.XYZ,args.xyzstart,args.mdtype)
+    params = (args.nsamps, args.abcd,nodes,args.interval,args.nsteps,args.XYZ,args.xyzstart,mdtype)
     Reac   = build.MOL(paths, params, 'reac')
     Prod   = build.MOL(paths, params, 'prod')
-    params = (args.nsamps,args.abcd,nodes,args.interval,args.nsteps,args.XYZ,'start',args.mdtype)
+    params = (args.nsamps,args.abcd,nodes,args.interval,args.nsteps,args.XYZ,'start',mdtype)
     TS     = build.MOL(paths, params,   'ts') 
 
     reacs = args.reacs
@@ -35,15 +35,15 @@ def build_files(args, paths, nodes = 1, msg=''):
     
     key = set_keys(args.reactype)
     i,j,k = 0,0,0
-    TSprops = [0, 0, [], []] #charge, spin, angles, atoms
+    TSprops = [0, 0, [], [],[]] #charge, spin, angles, atoms, sort
 
     #Build reacn.dat
     for i, reac in enumerate(reacs,start=1):
 
         msg += 'Task: Building reac{:g}.dat...'.format(i)
         msg  = log_msg(msg)
-        args.reacs, angles, atoms, args.jobs, stoichs, symnums = build_mol_dat(Reac, reacs, i, stoichs, symnums, args.jobs, args.mdtype)
-        TSprops = prep_reacs4TS(Reac, reac, i, key, angles, atoms, TSprops, args.nTS, paths)
+        args.reacs, angles, atoms, args.jobs, stoichs, symnums = build_mol_dat(Reac, reacs, i, stoichs, symnums, args.jobs, mdtype)
+        TSprops = prep_reacs4TS(Reac, reac, i, key, angles, atoms, Reac.sort,TSprops, args.nTS, paths)
         nsamps = Reac.nsamps
         msg += 'completed'
         msg  = log_msg(msg)
@@ -52,14 +52,14 @@ def build_files(args, paths, nodes = 1, msg=''):
     for j, prod in enumerate(prods,start=1):
         msg += 'Task: Building prod{:g}.dat...'.format(j)
         msg  = log_msg(msg)
-        args.prods, angles, atoms, args.jobs, stoichs, symnums = build_mol_dat(Prod, prods, j, stoichs, symnums, args.jobs, args.mdtype)
+        args.prods, angles, atoms, args.jobs, stoichs, symnums = build_mol_dat(Prod, prods, j, stoichs, symnums, args.jobs, mdtype)
         msg += 'completed'
         msg  = log_msg(msg)
     
     #Build TS, wellr, and wellp.dat
     tstype = ['ts','wellr','wellp']
     TS.ijk  = Reac.ijk
-    TS.sort = Reac.sort
+    TS.sort = TSprops[4]
     for k in range(args.nTS):
         msg += 'Task: Building ' + tstype[k] +  '.dat...'
         msg  = log_msg(msg)
@@ -80,7 +80,6 @@ def build_files(args, paths, nodes = 1, msg=''):
         msg += 'completed'
         msg  = log_msg(msg)
 
-    stoich = stoichs[0]
     mol    =   reac[0]
     #Builds theory.dat
     msg += 'Task: Building theory.dat...'
@@ -94,7 +93,7 @@ def build_files(args, paths, nodes = 1, msg=''):
     msg += 'Task: Building estoktp.dat...'
     msg  = log_msg(msg)
     jobs = update_jobs(args.jobs, args.restart)
-    params    = (stoich, args.reactype, args.coresh,args.coresl,args.mem)
+    params    = (stoichs, args.reactype, args.coresh,args.coresl,args.mem)
     eststring = build.build_estoktp(params,jobs,i,j,args.nTS)
     io.write_file(eststring, 'estoktp.dat')
     msg += 'completed'
@@ -173,7 +172,7 @@ def prepare_mdtau(nrot, jobs):
             jobs.insert(index+1, 'MdTau')
     return mdtau, jobs
 
-def prep_reacs4TS(MOL, reac, i, key, angles, atoms, tsprops, nTS, paths):
+def prep_reacs4TS(MOL, reac, i, key, angles, atoms, sort, tsprops, nTS, paths):
     """
     Sets transition state charge, mult, angles, and atoms respectively based 
     on the reactants.  May use abstractor templates if key matches
@@ -182,9 +181,10 @@ def prep_reacs4TS(MOL, reac, i, key, angles, atoms, tsprops, nTS, paths):
         if i == 1:
             sort = MOL.sort
         tsprops[0] += MOL.charge
-        tsprops[1] += 1./2 * (float(MOL.mult) - 1)
+        tsprops[1] = max(abs(tsprops[1] + 1./2 * (float(MOL.mult) - 1)), abs(tsprops[1] - 1./2 * (float(MOL.mult)-1)))
         if i == 1:
             tsprops[2], tsprops[3]  = angles, atoms
+            tsprops[4] = sort
         elif reac in key:
             import shutil
             shutil.copyfile(paths['torsscan'] + '/abstractors/' + reac + '.dat','reac2.dat')
@@ -198,8 +198,8 @@ def build_mol_dat(MOL, mollist, n, stoichs, symnums, jobs, mdtype='auto'):
 
     mol = mollist[n-1]
     atoms, measure, angles  = MOL.cart2zmat(mol)
-    mollist[n-1] = mol.split('_')[0]
-
+    #mollist[n-1] = mol.split('_')[0]
+    
     if mdtype.lower() == 'auto':
         MOL.MDTAU, jobs = prepare_mdtau(len(angles), jobs)
 

@@ -227,7 +227,7 @@ def run(args, paths):
     enlevel  = args.enlevel
     hlen     = args.hlen
     hfbases = []
-    speciess,speclist, anfreqs, anxmat = build_pfinput(args)
+    speciess, speclist, anfreqs, anxmat = build_pfinput(args)
     dH0   = []
     dH298 = []
     anharmbool = False
