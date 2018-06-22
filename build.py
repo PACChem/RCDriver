@@ -241,10 +241,27 @@ class MOL:
                             j+=1
         #Count rotors
         nmethylgroups = 0 
+        rotors = {}
+        groups = groups.split('beta')[0]
+        groups = groups.split('no')[0]
         for rotor in groups.split('\n'):
-            grouplist = rotor[3:].lower().split()
-            if 'c1h3' in grouplist:
-               nmethylgroups += 1
+            if rotor:
+                grouplist = rotor.lower().split()[1:]
+                if 'c1h3' in grouplist:
+                   nmethylgroups += 1
+                   rotors[rotor.split()[0]] = 0
+                else:
+                   rotors[rotor.split()[0]] = 1
+        ##reorder angles to have nonmethyl rotors first
+        methylrotors = []
+        nonmethylrotors = []
+        for rotor in rotors:
+            if rotors[rotor] == 1:
+                nonmethylrotors.append(rotor)
+            else:
+                methylrotors.append(rotor)
+        angles = nonmethylrotors + methylrotors
+
         self.nrotors = len(angles)
         self.nrotors = self.nrotors - nmethylgroups
 
@@ -287,7 +304,7 @@ class MOL:
                     c = int(c)
                     d = int(d)
                     self.nsamps = min(a + b * c**1, d)
-            self.nsamps = str(np.ceil(float(self.nsamps) / self.nodes))
+            self.nsamps = str(int(np.ceil(float(self.nsamps) / self.nodes)))
             #MC Parameters#############
             zmatstring  = 'nosmp dthresh ethresh\n'     
             zmatstring += self.nsamps + '  1.0  0.00001\n'

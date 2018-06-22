@@ -95,7 +95,7 @@ class RESULTS:
             prog   =  pa.get_prog(lines) 
             method =  pa.method(lines)
             if method:
-                method  = lower().lstrip('r')
+                method  = method.lower().lstrip('r')
             basis  =  pa.basisset(lines).lower() 
             energy = str(pa.energy(lines)[1]) 
         elif len(self.enlevel.split('/')) > 2 :
