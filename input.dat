@@ -16,13 +16,15 @@ No. of transition states: 0
 ==============
 Geometry options 
 ===============
-Use QTC xyz: False
+Use input xyz: False
             (True  - qtc provides nicely  printed optimized  geometry,  
              False - make openbabel xyz from smiles
              prog/method/basis - use xyz stored in directory (recommended)
              logfilename.log - makes torsscan parse out xyz)
  
 Use xyz as (start-starting geometry, 0-level0 geometry): start
+Select reac1 angles: 3, 2
+Select prod1 angles: 1, 4
 
 ==============
 BLUES options   
@@ -30,18 +32,19 @@ BLUES options
 Run on node (0 if on login OR ssh-ed on node, d to debug): b437, b438
 No. of cores high: 16
 No. of cores  low: 10
-
+Memory: 500
 
 ================
 EStoKTP options
 ================
-Gaussian optimization options: internal, maxcyc=40
+Level0 options: internal, loose, maxcyc=40
+Level1 options: internal, maxcyc=40
 Calculate no. MC points (A,B,C,D): 3,1,3,100
 No. MC  sampling points: 5
 Scan interval (degrees): 360
 No. of steps on the PES: 12
 Multidim scan (0, 1, 2, 3D, or auto): 2
-
+Extra estoktp.dat lines: resIRC
 ------------------------------------------------ 
    Module      :    Program    :      Theory
 ------------------------------------------------

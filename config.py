@@ -1,9 +1,20 @@
 #!/usr/bin/python
 
 import os
+import logging
+log   = logging.getLogger(__name__)
 
 class CONFIG:
-    def __init__(self,configfile):
+    def __init__(self,configfile,outfile=''):
+        loglevel = logging.DEBUG
+        logging.addLevelName(logging.ERROR, 'ERROR: ')
+        logging.addLevelName(logging.WARNING, 'WARNING: ')
+        logging.addLevelName(logging.DEBUG, 'Status: ')
+        logging.addLevelName(logging.INFO, '')
+        if outfile:
+            logging.basicConfig(format='%(levelname)s%(message)s', level=loglevel, filename=outfile, filemode='w')
+        else:
+            logging.basicConfig(format='%(levelname)s%(message)s', level=loglevel)
         self.configfile = configfile
         
     def get_paths(self):
@@ -52,13 +63,16 @@ class ARGS:
         self.restart  = 'false' #Point at which to restart a computation
         self.XYZ      = 'False' #Optimized XYZ provided
         self.xyzstart = 'start' #Optimized XYZ provided
+        self.select   = [[],[],[],[]] #specify angles for mdscan
 
         self.nodes    = 'debug' #Default node to run on in is debug (won't run)
         self.coresh   = '16'    #Default high number of cores is 16
         self.coresl   = '10'     #Default low number of cores is 10
         self.mem   = '200'     #Default is 200 MW
 
-        self.optoptions   = 'internal'     #Guassian options
+        self.zedoptions   = 'internal'     #Guassian options
+        self.oneoptions   = 'internal'     #Guassian options
+        self.esoptions   = ''     #estoktp options
         self.nsamps   = ''     #Number of MC sampling points
         self.nrotor   = '0'      #Number of rotors
         self.abcd     = '3,1,3,100'      #ABCD params to calculate number of mc points
@@ -107,7 +121,7 @@ class ARGS:
                     self.meths.append([comps[line[0]],line[1],line[2]])
                     templist.append(comps[line[0]])
                 self.jobs.append(line[0])
-            elif line[0] != '':
+            elif line[0] != '' and not 'kTP' in line:
                 if line[1] != '':
                     print (line[0] + ' is not a recognized module')
         return
@@ -130,12 +144,23 @@ class ARGS:
         self.nodes   = get_param(self.nodes    , 'node'         , options).replace(' ','').split(',')
         self.coresh  = get_param(self.coresh  , 'cores high'   , options)
         self.coresl  = get_param(self.coresl  , 'cores low'    , options)
+        self.coresl  = get_param(self.coresl  , 'cores  low'   , options)
         self.mem     = get_param(self.mem     , 'Memory'    , options)
 
         self.XYZ     = get_param(self.XYZ     , 'Use QTC'      , options)
+        self.XYZ     = get_param(self.XYZ     , 'Use input xyz', options)
         self.xyzstart= get_param(self.xyzstart, 'Use xyz as'   , options)
-
-        self.optoptions  = get_param(self.optoptions  , 'Gaussian optim'     , options)
+        self.select[0]  = get_param(self.select[0]  , 'Select reac1 angles', options)
+        self.select[1]  = get_param(self.select[1]  , 'Select reac2 angles', options)
+        self.select[2]  = get_param(self.select[2]  , 'Select prod1 angles', options)
+        self.select[3]  = get_param(self.select[3]  , 'Select prod2 angles', options)
+        for i  in range(4):
+            if type(self.select[i]) ==  str:
+                self.select[i] = self.select[i].replace(' ','').split(',')
+        self.oneoptions  = get_param(self.oneoptions  , 'Gaussian optim'     , options)
+        self.oneoptions  = get_param(self.oneoptions  , 'Level1 options'     , options)
+        self.zedoptions  = get_param(self.zedoptions  , 'Level0 options'     , options)
+        self.esoptions  = get_param(self.zedoptions  , 'Extra estoktp.dat'     , options)
         self.nsamps  = get_param(self.nsamps  , 'sampling'     , options)
         self.nrotor  = get_param(self.nrotor  , 'Number of rotors'     , options)
         self.abcd    = get_param(self.abcd    , 'Calculate no. MC points'     , options)
@@ -161,8 +186,8 @@ class ARGS:
             self.restart = int(self.restart)
         if '1' in self.xyzstart and self.restart < 2:
             self.restart = 2
-        if '0' in self.xyzstart and self.restart < 1:
-            self.restart = 1
+        #if '0' in self.xyzstart and self.restart < 1:
+        #    self.restart = 1
         return
 
     def rmg_params(self,rmgfile):

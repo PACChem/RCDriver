@@ -3,6 +3,8 @@
 import os
 import numpy as np
 import sys
+import logging
+log = logging.getLogger(__name__)
 
 class MOL:
     def __init__(self,paths, opts,typemol = 'reac'):
@@ -12,11 +14,12 @@ class MOL:
         self.typemol    = typemol
         self.paths      = paths
         self.convert    = paths['x2z'] 
-        global ob, pa, io
+        global ob, pa, io, qc
         sys.path.insert(0, paths['qtc'])
         import obtools as ob
         import iotools as io
         import patools as pa
+        import qctools as qc
 
         #OPTIONS##############################
         self.nsamps     = opts[0]    #number of MonteCarlo sampling points
@@ -45,6 +48,7 @@ class MOL:
         """
         smilesfilename = ob.get_smiles_filename(smiles) 
         cartlines = ''
+        found = True
         if '_m' in smiles:
             smiles, self.mult = smiles.split('_m')
         else:
@@ -52,6 +56,7 @@ class MOL:
 
         if self.XYZ.lower() == 'false':
             cartlines = build_obcart(smiles,self.mult)
+            found = False
 
         elif '.log' in self.XYZ.lower():
             cartlines = io.read_file('../' + self.XYZ)
@@ -61,15 +66,13 @@ class MOL:
             if io.check_file(self.XYZ):
                 cartlines = io.read_file(self.XYZ)
             else:
-                print('ERROR: no .geo or .xyz provided')
-                print('...Using openbabel instead')
+                log.warning('no .geo or .xyz provided\n...Using openbabel instead')
                 cartlines = build_obcart(smiles, self.mult)
-        
+                found = False
         elif len(self.XYZ.split('/') ) < 2:
-            cartlines, ijk = read_cart(smiles, self.mult)
+            cartlines, ijk, found = read_cart(smiles, self.mult)
             if ijk[0] != 0:
                 self.ijk = ijk
-
         elif len(self.XYZ.split('/')) > 2:  
             self.XYZ = self.XYZ.replace('g09','gaussian')
 
@@ -82,15 +85,17 @@ class MOL:
                 cartlines = cartlines.split('\n')[0] + ' \n\n' + cartlines
 
             else:
-                print ('\nERROR: No geometry found at ' + io.db_opt_path(self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2], None, smiles)
+                log.warning('No geometry found at ' + io.db_opt_path(self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2], None, smiles)
                                + smilesfilename + '.xyz' + '\n...building using OpenBabel instead')
                 cartlines = build_obcart(smiles,self.mult)
+                found = False
         else:
-            print('\nERROR: You have not specified a valid way to get the coordinates.  Use false, true, smiles.log, smiles.geo, smiles.xyz, or prog/method/basis')
+            log.error('You have not specified a valid way to get the coordinates.  Use false, true, smiles.log, smiles.geo, smiles.xyz, or prog/method/basis')
+            found = False
         io.write_file(cartlines,smilesfilename + '.xyz')
-        return smilesfilename
+        return smilesfilename, found
 
-    def cart2zmat(self,smiles): 
+    def cart2zmat(self,smiles, select = []): 
         """
         Runs x2z by Yuri Georgievski on a file of Cartesian coordinates and collects
         the internal coordinate and torsional angle information that it outputs
@@ -104,7 +109,7 @@ class MOL:
         angles  = []
         consts  = []
 
-        smilesfilename = self.build_xyzfile(smiles)
+        smilesfilename, found = self.build_xyzfile(smiles)
         mol         = ob.get_mol(smiles,make3D=True)
         self.charge = ob.get_charge(mol)
         self.stoich = ob.get_formula(mol
@@ -122,10 +127,10 @@ class MOL:
             os.system('{0}; {1}; {2} {3}_m{4}.xyz >  {5}'.format(gcc, intel, self.convert, smilesfilename, str(self.mult),tempfile))
 
         if os.stat(tempfile).st_size < 80:
-            print('Failed')
-            print('Please check that directory name and cartesian coordinate file name are equivalent')
-            print('Please check that test_chem is in location: ' +  self.convert)
-            print('Using OpenBabel zmat: no hindered rotors will be specified')
+            log.warning('Failed')
+            log.warning('Please check that directory name and cartesian coordinate file name are equivalent')
+            log.warning('Please check that test_chem is in location: ' +  self.convert)
+            log.warning('Using OpenBabel zmat: no hindered rotors will be specified')
             atoms, measure = build_obzmat(smiles)                     #If test_chem fails use openbabel to get zmat
             self.symnum = ' 1'
             self.ilin   = ' 0'
@@ -157,10 +162,10 @@ class MOL:
 
         #Rearrangement
         props, order = props.split('Z-Matrix atom order:')
-        self.sort = []
+        self.sort = {}
         for index in order.split('\n')[1:-2]:
-            self.sort.append(index.split('>')[1])
-
+            index = index.replace('X','0')
+            self.sort[int(index.split('>')[1])] = str(index.split('-->')[0])
         #rotational groups
         groups = ''
         if len(lines.split("Rotational groups:")) > 1:
@@ -241,14 +246,41 @@ class MOL:
                             j+=1
         #Count rotors
         nmethylgroups = 0 
+        rotors = {}
+        groups = groups.split('Beta')[0]
+        groups = groups.split('no')[0]
         for rotor in groups.split('\n'):
-            grouplist = rotor[3:].lower().split()
-            if 'c1h3' in grouplist:
-               nmethylgroups += 1
+            if rotor:
+                grouplist = rotor.lower().split()[1:]
+                if 'c1h3' in grouplist:
+                   nmethylgroups += 1
+                   rotors[rotor.split()[0]] = [0, grouplist]
+                else:
+                   rotors[rotor.split()[0]] = [1, grouplist]
+        ##reorder angles to have nonmethyl rotors first
+        methylrotors = []
+        nonmethylrotors = []
+        for rotor in rotors:
+            if rotors[rotor][0] == 1:
+                nonmethylrotors.append(rotor)
+            else:
+                methylrotors.append(rotor)
+        angles = nonmethylrotors + methylrotors
+        for i, angle in enumerate(angles):
+             if str(i+1) in select or angle.lower() in select:
+                 del angles[i]
+                 angles.insert(0, angle)
+       
+        msg = '' 
+        if angles:
+            msg += '{}\n  Num\tLabel\tgroup1\tgroup2\n'.format(smiles)
+            for i, angle in enumerate(angles):
+                msg += '  {:g}\t{}\t{}\t{}\n'.format(i+1, angle, rotors[angle][1][0], rotors[angle][1][1])
+        
         self.nrotors = len(angles)
         self.nrotors = self.nrotors - nmethylgroups
-
-        return atoms, measure, angles
+        
+        return atoms, measure, angles, found, msg
          
 
     def build(self, n, smiles, angles, atoms = [], measure = []):
@@ -273,7 +305,7 @@ class MOL:
             zmatstring  = 'nosmp dthresh ethresh\n'     
             zmatstring += self.nsamps + '  1.0  0.00001\n'
             #Torsional Scan Parameters#############
-            zmatstring += tau_hind_str(atoms, angles, self.interval, self.nsteps, self.MDTAU)
+            zmatstring += tau_hind_str([atoms], [angles], self.interval, self.nsteps, self.MDTAU)
             #Size and linearity of molecule###########
             zmatstring += '\nnatom natomt ilin\n'
             ndummy = count_dummy(atoms)
@@ -286,8 +318,8 @@ class MOL:
                     b = int(b)
                     c = int(c)
                     d = int(d)
-                    self.nsamps = min(a + b * c**self.nrotors, d)
-            self.nsamps = str(np.ceil(float(self.nsamps) / self.nodes))
+                    self.nsamps = min(a + b * c**1, d)
+            self.nsamps = str(int(np.ceil(float(self.nsamps) / self.nodes)))
             #MC Parameters#############
             zmatstring  = 'nosmp dthresh ethresh\n'     
             zmatstring += self.nsamps + '  1.0  0.00001\n'
@@ -297,14 +329,14 @@ class MOL:
                 import get_sites
                 #i,j,k sites###########################
                 zmatstring += '\nisite jsite ksite\n'
+                if self.sort:
+                    for i in range(3):
+                        self.ijk[i] = self.sort[int(self.ijk[i])-1]
                 if self.ijk[0] != 0:
                     zmatstring += ' '.join(self.ijk)
                 else:
                     lines = io.read_file('../rmg.dat')
                     zmatstring += ' '.join(get_sites.sites(lines))
-                if self.sort:
-                    for i in range(3):
-                        self.ijk[i] = str(int(self.sort[int(self.ijk[i])-1])+1)
                 zmatstring += '\n\nrmin rmax nr\n 1.0 2.5 8\n  -->aabs1,babs1,aabs2,babs2,babs3\n 90., 180., 90., 175., 90.\n'
 
         #Typical Z-Matrix########################
@@ -396,17 +428,25 @@ def build_molpro(meth,freqcalc,opt):
     molfile += '_molpro.dat'
     return molstr, molfile
 
+def build_mehead():
+    head = '!***************************************************\n!               GLOBAL SECTION\n!***************************************************\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n!\n!\nTemperatureList[K]                      300 400 500 600 700 800 900 1000 1100 1200 1300 1400 1500 1600 1700 1800 1900 2000 2100 2200 2300 2400 2500  \nPressureList[atm]                       1.0     10.   100.  1000. 10000.\n!\n!\nEnergyStepOverTemperature               .2         ! [Discretization energy step (global relax matrix)] / T                   \nExcessEnergyOverTemperature             30         ! [Highest barrier in the model (global relax matrix)] / T                      \nModelEnergyLimit[kcal/mol]              400        ! Highest reference energy used in the calculation ( or ReferenceEnergy[kcal/mol])\n!\nCalculationMethod                       direct     ! direct or low-eigenvalue                     \n!\nWellCutoff                              20         ! well truncation parameter : Max { dissociation limit (min barrier rel. to bottom of the well) / T }\nChemicalEigenvalueMax                   0.2        ! Max chemical eigenvalue / Lowest Collision relaxation eigenvalue \n!\nReductionMethod                         diagonalization ! [low eigenvalue method only] diagonalization or projection (default)\n!      \n!!!!!!!!!test!!!!!!!!!!!!!!!!!!!!\n!WellCutoff                            10\n!ChemicalEigenvalueMin                 1.e-6          #only for direct diagonalization method\n!!!!!!!!test!!!!!!!!!!!!!!!!!!!!!!!!!!\nAtomDistanceMin[bohr]                  1.3\n!!\nRateOutput                              rate.out                        ! output file name for rate coefficients                         \n!\n!\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n!***************************************************\n!               MODEL SECTION\n!***************************************************\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n!\n!                          \nModel        \n!                                                           \n  EnergyRelaxation                                                      ! Default collisional energy relaxation kernel                              \n    Exponential                                                         ! Currently the only possible energy relaxation model              \n       Factor[1/cm]                     260                             ! (Delta_E_down)^(0) @ standard T (300 K)                          \n       Power                            0.875                           ! Power n in the expression (Delta_E_down) = (Delta_E_down)^(0) (T/T0)^(n)\n       ExponentCutoff                   10                              ! if (Delta_E) / (Delta_E_down) > value  transition probability is zero     \n    End  \n!                                                               \n'
+    head += '  CollisionFrequency                                                    ! Collision frequency model\n    LennardJones                                                        ! Currently the only possible collisional frequency model  based on LJ potential\n       Epsilons[K]                       90.58  617.0                   ! Epsilon_1 and Epsilon_2 (630.4 x kB x Na = 1.25)(cm-1 to K = x 1.4) Ar and c7h7o2 (from Murakami)        \n       Sigmas[angstrom]                  3.54    5.62                   ! Sigma_1 and Sigma_2 (from Murakami) \n       Masses[amu]                       39.948 29.0                    ! Masses of the buffer gas molecule and of the complex (check order)\n    End      \n!\n!*************************************************\n!\n!***************************************************\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n!***************************************************\n!  REACTANTS\t\t\t\t\t\n!***************************************************\n\n\n'
+    return head 
 
-def build_theory(meths,nTS, optoptions):
+def build_theory(meths,nTS, zedoptions, oneoptions):
     """
     Builds theory.dat 
     meth[0] is module, meth[1] is program, and meth[2] is theory/basis
     """
     theory    = ''
     tsopt  = ' opt=(ts,calcfc,noeig,intern,maxcyc=50)\n '
-    rpopt  = ' opt=(' + optoptions +  ')\n '
+    rzpopt = ' opt=(' + zedoptions +  ')\n '
+    rpopt  = ' opt=(' + oneoptions +  ')\n '
     vwopt  = ' opt=(internal,calcall) scf=qc\n '
     allint = 'int=ultrafine nosym '
+    ircfor = ' irc(forward,calcall,stepsize=3,maxpoints=10)\n int=ultrafine nosym iop(7/33=1)\n'
+    ircrev = ' irc(reverse,calcall,stepsize=3,maxpoints=10)\n int=ultrafine nosym iop(7/33=1)\n'
+    ircend = ' HRcc 1 1'
 
     for meth in meths:
         if 'molpro' in meth[1]:
@@ -425,7 +465,14 @@ def build_theory(meths,nTS, optoptions):
 
         elif  'g09' in meth[1]:   
             theory += meth[0] + ' ' + meth[1] + '\n '
-            theory += meth[2] + rpopt + allint
+            if meth[0] == 'irc':
+                theory +=  meth[2] + ircfor + meth[2] + ircrev + ircend
+            elif 'hlevel' in meth[0]:
+                theory += meth[2] + '\n' + allint
+            elif meth[0] == 'level0':
+                theory += meth[2] + rzpopt + allint
+            else:
+                theory += meth[2] + rpopt + allint
             if meth[0] == 'level1':
                 theory += ' freq'
             theory += '\n\n'
@@ -445,29 +492,86 @@ def build_theory(meths,nTS, optoptions):
                 if meth[0] == 'hind_rotor':
                     theory += '\n ' + meth[2] + rpopt + allint
                 theory += '\n\n'
-        else:
-            print meth[0] + ' is not a recognized program.\n'
+        elif meth[0].lower() != 'ktp':
+            log.warning(meth[0] + ' is not a recognized program.\n')
             
     theory += 'End'
 
     return theory 
 
-def build_estoktp(params, jobs, nreacs, nprods, nTS):
+def build_estoktp(params, jobs, nreacs, nprods, nTS, xyzstart, foundlist):
     """
     Builds estoktp.dat
     """
-    stoich    = params[0]
+    stoichs    = params[0]
     reactype  = params[1]
     coresh    = params[2]
     coresl    = params[3]
     mem       = params[4]
+    esoptions = params[5]
+    fullstoich = {}
+    if len(stoichs) > 2:
+        stoichs = stoichs[:2]
+    for stoich in stoichs:
+        stoich = qc.get_atom_stoich(stoich)
+        if 'C' in stoich:
+           if 'C' in fullstoich:
+               fullstoich['C'] += stoich['C']
+           else:
+               fullstoich['C']  = stoich['C']
+        if 'H' in stoich:
+           if 'H' in fullstoich:
+               fullstoich['H'] += stoich['H']
+           else:
+               fullstoich['H']  = stoich['H']
+        if 'O' in stoich:
+           if 'O' in fullstoich:
+               fullstoich['O'] += stoich['O']
+           else:
+               fullstoich['O']  = stoich['O']
+        if 'N' in stoich:
+           if 'N' in fullstoich:
+               fullstoich['N'] += stoich['N']
+           else:
+               fullstoich['N']  = stoich['N']
+        if 'S' in stoich:
+           if 'S' in fullstoich:
+               fullstoich['S'] += stoich['S']
+           else:
+               fullstoich['S']  = stoich['S']
+    stoich = ''
+    if 'C' in fullstoich:
+       if fullstoich['C'] > 1:
+           stoich += 'C{:g}'.format(fullstoich['C'])
+       else:
+           stoich += 'C'
+    if 'H' in fullstoich:
+       if fullstoich['H'] > 1:
+           stoich += 'H{:g}'.format(fullstoich['H'])
+       else:
+           stoich += 'H'
+    if 'O' in fullstoich:
+       if fullstoich['O'] > 1:
+           stoich += 'O{:g}'.format(fullstoich['O'])
+       else:
+           stoich += 'O'
+    if 'N' in fullstoich:
+       if fullstoich['N'] > 1:
+           stoich += 'N{:g}'.format(fullstoich['N'])
+       else:
+           stoich += 'N'
+    if 'S' in fullstoich:
+       if fullstoich['S'] > 1:
+           stoich += 'S{:g}'.format(fullstoich['S'])
+       else:
+           stoich += 'S'
     eststring = ' Stoichiometry\t' + stoich.upper()
     
     PossibleRxns = ['addition','abstraction','isomerization','betascission','well','']
     Tstype       = ['TS','wellr','wellp']
  
     if reactype.lower() not in PossibleRxns:
-        print('ReactionType ' + reactype +' is unrecognized, please use: Addition, Abstraction, Isomerization, or Betascission')
+        log.warning('ReactionType ' + reactype +' is unrecognized, please use: Addition, Abstraction, Isomerization, or Betascission')
     elif reactype != '' and reactype.lower() != 'well':
         eststring  += '\n ReactionType   ' + reactype
         if nTS != 0:
@@ -478,10 +582,11 @@ def build_estoktp(params, jobs, nreacs, nprods, nTS):
                     eststring += '\n WellP findgeom level1'
     if 'Irc' in jobs:
         eststring += '\n Variational'
+    for line in esoptions.split(','):
+        eststring += '\n {}'.format(line.strip())
     if nprods > 0:
         eststring += '\n Prods'
     eststring +='\n Debug  2\n'
- 
     for job in jobs:
         if 'kTP' in job or 'irc' in job.lower():
             eststring += job
@@ -489,12 +594,16 @@ def build_estoktp(params, jobs, nreacs, nprods, nTS):
             for n in range(nreacs):
                 if 'Opt_1' in job:
                     eststring += '\n ' + job.rstrip('_1') + '_Reac' + str(n+1) + '_1'
+                elif 'Opt' in job and xyzstart == '0' and foundlist[n]:
+                        eststring += '\nn' + job + '_Reac' + str(n+1)
                 else:
                     eststring += '\n ' + job + '_Reac' + str(n+1)
  
             for n in range(nprods):
                 if 'Opt_1' in job:
                     eststring += '\n ' + job.rstrip('_1') + '_Prod' + str(n+1) + '_1'
+                elif 'Opt' in job and xyzstart == '0' and foundlist[n+nreacs]:
+                        eststring += '\nn' + job + '_Prod' + str(n+1)
                 else:
                     eststring += '\n ' +job + '_Prod' + str(n+1)
  
@@ -502,7 +611,7 @@ def build_estoktp(params, jobs, nreacs, nprods, nTS):
                 if 'Opt_1' in job:
                     eststring += '\n ' + job.rstrip('_1') + '_' + Tstype[n]  + '_1'
                 elif 'Tau' in job:
-                    if n < 1:
+                  #  if n < 1:
                         eststring += '\n ' +job + '_' + Tstype[n] 
                 elif 'Opt' in job and n <1:
                     eststring += '\n Grid_' + job + '_' + Tstype[n]
@@ -610,31 +719,39 @@ def find_period(zmat,hin):
         period = 1
     return period
 
-def tau_hind_str(atoms, angles, interval, nsteps, mdtau):
+def tau_hind_str(atomslist, angleslist, interval, nsteps, mdtau):
+    anglen = 0
+    if angleslist:
+        anglen = len(angleslist[0])
+        if len(angleslist) > 1:
+            anglen += len(angleslist[1])
+    allangles = []
+    periods   = []
     #TAU
     string  = '\nntau number of sampled coordinates\n'
-    string += str(len(angles)) + '\n'
+    string += str(anglen) + '\n'
     string += ' -->nametau, taumin, taumax\n'
-    for angle in angles:
-        periodicity = find_period(atoms, angle)
-        string += angle + ' 0 ' + interval + '\n'
-
+    for i, angles in enumerate(angleslist):
+        for angle in angles:
+            periodicity = find_period(atomslist[i], angle)
+            string += angle + ' 0 ' + str(interval) + '\n'
+            allangles.append(angle)
+            periods.append(periodicity)
     #1 and 2D HIND
     string += '\nnhind\n'
-    string += str(len(angles)) + '\n'
+    string += str(anglen) + '\n'
     string += ' -->namehind,hindmin,hindmax,nhindsteps,period\n'
-    for hin in angles:
-        periodicity = find_period(atoms, hin)
+    for i, hin in enumerate(allangles):
+        periodicity = periods[i]
         string += hin + ' 0 ' + str(float(interval)/periodicity)  + ' ' + str(int(round(float(nsteps)/periodicity))) + ' ' + str(periodicity)  + '\n'   
-
-    if mdtau and len(angles) > 1:
+    if mdtau and anglen > 1:
         mdtau   = mdtau.strip('D').strip('d')
         string += '\nnhind' + mdtau + 'D\n'
         string += '1\n'
         string += ' -->namehind,hindmin,hindmax,nhindsteps,period\n'
         for i in range(int(mdtau)):
-            periodicity = find_period(atoms, angles[i])
-            string += angles[i] + ' 0 ' + str(float(interval)/periodicity) + ' ' + str(int(round(float(nsteps)/periodicity))) + ' ' + str(periodicity)  + '\n'   
+            periodicity = periods[i]
+            string += allangles[i] + ' 0 ' + str(float(interval)/periodicity) + ' ' + str(int(round(float(nsteps)/periodicity))) + ' ' + str(periodicity)  + '\n'   
     return string
 
 def build_obzmat(smiles):
@@ -701,7 +818,7 @@ def build_optout(xyzstart, XYZ, measure, angles, deletedangles, smiles, smilesfi
             E = io.db_get_sp_prop(smilesfilename, 'ene', None, split[0], split[1], split[2],
                                                          split[0], split[1], split[2])
             if E == None:
-                print('\nNo energy found at ' + io.db_sp_path(split[0], split[1], split[2], 
+                log.warning('No energy found at ' + io.db_sp_path(split[0], split[1], split[2], 
                         None, smiles, split[0], split[1], split[2]) + smilesfilename + '.ene')
         else:
             E = '0'
@@ -744,10 +861,9 @@ def read_cart(smiles, mult):
         cartlines = io.read_file('../' + smilesfilename + '.geo')
         cartlines = str(len(cartlines.split('\n'))-1) + ' \n\n' + cartlines
     else:
-        print('ERROR: no .geo or .xyz provided')
-        print('...Using openbabel instead')
+        log.warning('No .geo or .xyz provided\n...Using openbabel instead')
         cartlines = build_obcart(smiles, mult)
-        return cartlines, ijk
+        return cartlines, ijk, False
 
     #Find if i,j,k site is specified:
     cartlines = cartlines.splitlines()
@@ -765,5 +881,5 @@ def read_cart(smiles, mult):
                 del cartlines[i]
                 cartlines.insert(2,temp)
     cartlines = '\n'.join(cartlines)
-    return cartlines, ijk 
+    return cartlines, ijk, True
 

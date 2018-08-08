@@ -4,10 +4,15 @@ import os
 import sys
 import numpy as np
 import rmg_reader as rg
+import logging
+import config  
+import estoktp as es
+log   = logging.getLogger(__name__)
+import argparse
 
 def random_cute_animal():
     import random 
-    print(random.choice(["""\t\t   TORSSCAN
+    msg = random.choice(["""\n\t\t   TORSSCAN
                     _,--._
                   ,'      `.
           |\     /          \     /|
@@ -22,7 +27,7 @@ def random_cute_animal():
         \o`---'  ,'        `.  `---'o/
          `.____,'           `.____,'  """,
 
-     """    
+     """\n    
             ,,,         ,,,
           ;"   ^;     ;'   ",
          ;    s$$$$$$$s      ;
@@ -35,7 +40,7 @@ def random_cute_animal():
           $$$$$$$$$$$$$$$$$
      TORS  "Y$$$"'*'"$$$Y"  SCAN    
               "$$b.d$$"        """,
-    """
+    """\n
                          _.---~-~-~~-..
      ..       __.    .-~               ~-.
      ((\     /   `}.~      Try            `.
@@ -48,32 +53,29 @@ def random_cute_animal():
                      /  /         \  \         `~-..__ `~__
                   __/  /          _\  )               `~~---'
                 .<___.'         .<___/
-    """]))
-    return
+    """])
+    return msg
 
 if __name__ == "__main__":
   
    
-    random_cute_animal()
-     
-
-    #####  Get arguments  ##########
-    ################################
-    import sys
-    import os
-    import config  
-    import estoktp as es
-
-    optionfile = 'input.dat'
     torspath   = os.path.dirname(os.path.realpath(sys.argv[0]))
     configfile = torspath + os.path.sep + 'configfile.txt'
-    if len(sys.argv) > 1:
-        optionfile = sys.argv[1]
-        if len(sys.argv) > 2:
-            configfile = sys.argv[2]
-     
-    args   = config.ARGS(  optionfile)
-    Config = config.CONFIG(configfile)
+    #####  Get arguments  ##########
+    ################################
+    parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
+                            description="TorsScan")
+    parser.add_argument('-i','--inputfile',   type=str,   default='input.dat')
+    parser.add_argument('-c','--configfile',   type=str,   default=configfile)
+    parser.add_argument('-o','--outputfile',   type=str,   default='')
+    inputs = parser.parse_args()
+
+    inputfile  = inputs.inputfile
+    configfile = inputs.configfile 
+    outputfile = inputs.outputfile
+   
+    args   = config.ARGS(  inputfile)
+    Config = config.CONFIG(configfile,outputfile)
     paths  = Config.path_dic()
     paths['torsscan'] = torspath
 
@@ -81,6 +83,7 @@ if __name__ == "__main__":
     sys.path.insert(0, es.get_paths(paths,     'qtc'))
     sys.path.insert(0, es.get_paths(paths,'torsscan'))
 
+    log.info(random_cute_animal())
     #####  Build and Run EStokTP  ######
     ####################################
     import obtools as ob
@@ -91,62 +94,24 @@ if __name__ == "__main__":
     symnums = []
     samps = None
     if args.restart < 5:
-        j,k = 0,0
-        if len(args.nodes) > 0 and "Opt" in args.jobs and args.restart < 1:
+        index = 0
+        if "Opt" in args.jobs and args.restart < 1:
             alljobs = args.jobs
             args.jobs = ["Opt"]
-            stoichs, symnums = es.build_files(args, paths, len(args.nodes))
-            for i, node in enumerate(args.nodes):
-                io.mkdir(node)
-                io.cd(node)
-                io.rmrf('data')
-                shutil.copytree('../data', 'data')
-                es.execute(paths, node, '&')
-                io.cd('..')
-            running = True
-            import time
-            while (running):
-                running = False
-                for node in args.nodes:
-                    filename = node + '/output/estoktp.out'
-                    if not io.check_file(filename):
-                        running = True
-                        print 'waiting on node {}'.format(node)
-                    else: 
-                        if len(io.read_file(filename)) < 20:
-                            running = True
-                            print 'waiting on node {}'.format(node)
-                time.sleep(60)
-            io.mkdir('geoms')
-            for i, node in enumerate(args.nodes):
-                for geom in os.listdir(node + '/geoms'):
-                    j += 1
-                    shutil.copy(node + '/geoms/' + geom, 'geoms/{}_{}.xyz'.format(geom.split('_')[0], str(j).zfill(2)))
-                for geom in os.listdir(node + '/output'):
-                    if 'opt_' in geom:
-                        k += 1
-                        shutil.copy(node + '/output/' + geom, 'output/{}opt_{}.out'.format(geom.split('opt')[0], str(k).zfill(2)))
-            samps = j
+            es.run_level0(args, paths)
             args.restart = 1
             args.jobs = alljobs
-            for i in range(len(args.reacs)):
-                filename = es.check_geoms(paths['qtc'], 'reac' + str(i+1), samps)
-                filename = filename.split('/')[1].split('_')[0] + '_opt_' +  filename.split('_')[1]
-                filename = 'output/' + filename.replace('.xyz','.out')
-                shutil.copy(filename, 'output/reac' + str(i+1) + '_opt.out')
-            for i in range(len(args.prods)):
-                filename = es.check_geoms(paths['qtc'], 'prod' + str(i+1), samps)
-                filename = filename.split('/')[1].split('_')[0] + '_opt_' +  filename.split('_')[1]
-                filename = 'output/' + filename.replace('.xyz','.out')
-                shutil.copy(filename, 'output/prod' + str(i+1) + '_opt.out')
-        if "1dTau" in args.jobs:
+        if "1dTau" in args.jobs and args.restart < 3:
             alljobs = args.jobs
             negvals = True
-            while (negvals):
+            attempt = 0
+            while (negvals and attempt < 3):
+                attempt += 1
                 args.jobs = ["Opt_1", "1dTau"]
                 negvals = False
                 stoichs, symnums = es.build_files(args, paths)
                 es.execute(paths, args.nodes[0])
+                shutil.copy('output/estoktp.out','output/estoktp_l1.out')
                 args.restart = 3
                 negvals = False
                 for i in range(len(args.reacs)):
@@ -160,18 +125,22 @@ if __name__ == "__main__":
                             pot = rotor.split(startkey)[1]
                             pot = pot.splitlines()[1]
                             for k, ene in enumerate(pot.split()):
-                                if float(ene) < lowene:
+                                if float(ene) - lowene < .2:
                                     lowene = float(ene)
                                     lowenefile = 'hr_geoms/geom_isp' + str(i+1).zfill(2) + '_hr' + str(j+1).zfill(2) + '_hpt' + str(k+1).zfill(2) + '.xyz'
                     if lowenefile:
-                        negvals = True
                         xyz = io.read_file(lowenefile)
                         slabel = ob.get_slabel(ob.get_mol(xyz))
-                        io.write_file(xyz,slabel + '.xyz')
-                        args.restart = 1
-                        args.XYZ = 'true'
-                        args.xyzstart = '0'
-                        print 'Lower configuration found in 1dTau. Restarting at Level1. Saved geometry to {}'.format(slabel + '.xyz')
+                        if slabel == ob.get_slabel(args.reacs[i]):
+                            negvals = True
+                            slabel = ob.get_smiles_filename(slabel)
+                            io.write_file(xyz,slabel + '.xyz')
+                            args.restart = 1
+                            args.XYZ = 'true'
+                            args.xyzstart = '0'
+                            log.warning( 'Lower configuration found in 1dTau. Restarting at Level1. Saved geometry to {}'.format(slabel + '.xyz'))
+                        else: 
+                            log.warning( 'Lower configuration found in 1dTau. But has different smiles: {} vs. {}'.format(slabel, ob.get_slabel(args.reacs[i])))
                 for l in range(len(args.prods)):
                     lowene = 0.
                     lowenefile = None
@@ -183,18 +152,22 @@ if __name__ == "__main__":
                             pot = rotor.split(startkey)[1]
                             pot = pot.splitlines()[1]
                             for k, ene in enumerate(pot.split()):
-                                if float(ene) < lowene:
+                                if float(ene) -lowene < .2:
                                     lowene = ene
-                                    lowenefile = 'hr_geoms/geom_isp' + str(i+l+1).zfill(2) + '_hr' + str(j+1).zfill(2) + '_hpt' + str(k+1).zfill(2) + '.xyz'
+                                    lowenefile = 'hr_geoms/geom_isp' + str(i+l+2).zfill(2) + '_hr' + str(j+1).zfill(2) + '_hpt' + str(k+1).zfill(2) + '.xyz'
                     if lowenefile:
-                        negvals = True
                         xyz = io.read_file(lowenefile)
                         slabel = ob.get_slabel(ob.get_mol(xyz))
-                        io.write_file(xyz, slabel + '.xyz')
-                        args.restart = 1
-                        args.XYZ = 'true'
-                        args.xyzstart = '0'
-                        print 'Lower configuration found in 1dTau. Restarting at Level1. Saved geometry to {}'.format(slabel + '.xyz')
+                        if slabel == ob.get_slabel(args.prods[l]):
+                            negvals = True
+                            slabel = ob.get_smiles_filename(slabel)
+                            io.write_file(xyz, slabel + '.xyz')
+                            args.restart = 1
+                            args.XYZ = 'true'
+                            args.xyzstart = '0'
+                            log.warning( 'Lower configuration found in 1dTau. Restarting at Level1. Saved geometry to {}'.format(slabel + '.xyz'))
+                        else: 
+                            log.warning( 'Lower configuration found in 1dTau. But has different smiles: {} vs. {}'.format(slabel, ob.get_slabel(args.prods[l])))
             args.jobs = alljobs
         stoichs, symnums = es.build_files(args, paths)
         es.execute(paths, args.nodes[0])
@@ -214,9 +187,8 @@ if __name__ == "__main__":
     args.enlevel = rs.enlevel
     args.taulevel = rs.taulevel
 
-    if args.parseall.lower() == 'true':
+    if args.parseall.lower() == 'true' or args.alltherm.lower() == 'true':
          rs.get_results()
-
     #######  Build and run thermo  #########
     ########################################
     import thermo
@@ -224,7 +196,7 @@ if __name__ == "__main__":
     if args.alltherm.lower() == 'true':
         rs.thermo = True
         args.symnums = symnums
-        rs.dH0, rs.dH298, rs.hfbases, rs.anfreqs, rs.anxmat = thermo.run(args, paths)
+        rs.dH0, rs.dH298, rs.hfbases, rs.anfreqs, rs.anxmat = thermo.run(args, paths, rs.d)
         if args.parseall.lower() == 'true':
              rs.get_thermo_results()
 

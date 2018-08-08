@@ -12,7 +12,7 @@ function, thermp, pac99 executables to generate 298 K heats of formation, heat c
 Users can clone TorsScan from https://github.com/snelliott/TorsScan or simply use its location at  /home/elliott/Packages/TorsScan on Blues.  
 
 
-## (3) DEPENDENCIES
+## (2) DEPENDENCIES
 
 TorsScan relies on EStokTP developed by Carlo Cavallotti, Matteo Pelucchi, and Stephen Klippenstein. TorsScan uses the iotools (input/output tools), obtools (openbabel tools), and patools (parsing tools), built by Murat Keceli and Sarah Elliott that can be found in /home/keceli/qtc, /home/elliott/Packages/QTC/, or cloned from  https://github.com/keceli/QTC. Obtools, in turn, needs OpenBabel with pybel python bindings.  You will need to either install that by following these instructions https://pypi.python.org/pypi/openbabel  or by adding to your bashrc: export PYTHONPATH=$PYTHONPATH:/home/keceli/openbabel-2.4.1/install/lib/python2.7/site-packages.  
 The zmat builder uses x2z by Yuri Georgievski.  This can be cloned from https://github.com/PACChem/x2z. 
@@ -21,7 +21,7 @@ The thermochemistry computations in TorsScan uses heatform, anharm, and tctools 
 
 ## (3) INPUT
 
-The main executable is torsional_scan.py.  It will need an inputfile (an example is located at /home/elliott/Packages/TorsScan/input.dat).  If no inputfile is specified (e.g., the command is not  torsional_scan.py myinputfile.txt)  the code will automatically look for a file named input.dat. The input file separates keywords from their input values with a colon.  The keywords are case sensitive but the values are not.  
+The main executable is torsional_scan.py.  It will need an inputfile (an example is located at /home/elliott/Packages/TorsScan/input.dat).  If no inputfile is specified (e.g., the command is not  torsional_scan.py myinputfile.txt)  the code will automatically look for a file named input.dat. The input file separates keywords from their input values with a colon.  The keywords are case sensitive but the values are not.  Lines can be commented out with a \#
 
 
 ### SPECIES INPUT
@@ -271,3 +271,14 @@ First go to output/estoktp.out and search for ‘starting’.  What was the last
 **Want to know more about what TorsScan is doing?**
 
 The majority of the files TorsScan generates are in the data directory.  To understand the contents of these files please view the EStokTP manual (put link here when available).  All of the python files in TorsScan (torsional_scan.py, build.py, anharm.py, and /home/elliott/Packages/QTC/heatform.py) are somewhat commented so feel free to dig around!  You can direct questions to Sarah Elliott.
+
+## (4) ACKNOWLEDGEMENT
+This research was supported by the Exascale Computing Project (ECP), Project Number: 17-SC-20-SC -- a collaborative effort of two DOE organizations, the Office of Science and the National Nuclear Security Administration, responsible for the planning and preparation of a capable exascale ecosystem including software, applications, hardware, advanced system engineering, and early test bed platforms to support the nation's exascale computing imperative -- and by the DOE Krell Computational Science Graduate Fellowship Grant Number DE-FG02-97ER25308. 
+
+
+## (5) COPYRIGHT
+Copyright 2018 Sarah N Elliott, Murat Keceli, and Stephen J Klippenstein
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
