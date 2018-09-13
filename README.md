@@ -14,23 +14,23 @@ Users can clone TorsScan from https://github.com/snelliott/TorsScan or simply us
 
 ## (2) DEPENDENCIES
 
-TorsScan relies on EStokTP developed by Carlo Cavallotti, Matteo Pelucchi, and Stephen Klippenstein. TorsScan uses the iotools (input/output tools), obtools (openbabel tools), and patools (parsing tools), built by Murat Keceli and Sarah Elliott that can be found in /home/keceli/qtc, /home/elliott/Packages/QTC/, or cloned from  https://github.com/keceli/QTC. Obtools, in turn, needs OpenBabel with pybel python bindings.  You will need to either install that by following these instructions https://pypi.python.org/pypi/openbabel  or by adding to your bashrc: export PYTHONPATH=$PYTHONPATH:/home/keceli/openbabel-2.4.1/install/lib/python2.7/site-packages.  
+TorsScan relies on EStokTP developed by Carlo Cavallotti, Matteo Pelucchi, and Stephen Klippenstein. TorsScan uses the iotools (input/output tools), obtools (openbabel tools), and patools (parsing tools), built by Murat Keceli and Sarah Elliott that can be cloned from  https://github.com/keceli/QTC or https://github.com/PACChem/QTC. Obtools, in turn, needs OpenBabel with pybel python bindings.  You will need to either install that by following these instructions https://pypi.python.org/pypi/openbabel.
 The zmat builder uses x2z by Yuri Georgievski.  This can be cloned from https://github.com/PACChem/x2z. 
-The thermochemistry computations in TorsScan uses heatform, anharm, and tctools also on the QTC github, pac99 by Bonnie Mcbride, thermp by Stephen Klippenstein, and mess by Yuri Georgievski. 
+The thermochemistry computations in TorsScan uses heatform, anharm, and tctools also on the QTC github, pac99 by Bonnie Mcbride, thermp by Stephen Klippenstein, and mess by Yuri Georgievski. The locations of these files should be in the user's path or specified in a configfile (run torsscan with -c <configfile>)
 
 
-## (3) INPUT
+## (3) INPUT / OUTPUT
 
-The main executable is torsional_scan.py.  It will need an inputfile (an example is located at /home/elliott/Packages/TorsScan/input.dat).  If no inputfile is specified (e.g., the command is not  torsional_scan.py myinputfile.txt)  the code will automatically look for a file named input.dat. The input file separates keywords from their input values with a colon.  The keywords are case sensitive but the values are not.  Lines can be commented out with a \#
+The main executable is torsional_scan.py.  It will need an inputfile specified with the -i flag (an example is located at /home/elliott/Packages/TorsScan/input.dat).  If no inputfile is specified with the (e.g., the command is not  torsional_scan.py myinputfile.txt)  the code will automatically look for a file named input.dat. The input file separates keywords from their input values with a colon.  The keywords are case sensitive but the values are not.  Lines can be commented out with a \#.  The output will print to termminal unless an output file is specified with a -o flag.
 
 
 ### SPECIES INPUT
 
 **Reactant list:**
 
-List up to two, comma-separated SMILES strings.  OpenBabel will generate an xyz geometry for test_chem to transform into the zmat found in reac1.dat and reac2.dat.
+List up to two, comma-separated SMILES strings.  OpenBabel will generate an xyz geometry for x2z to transform into the zmat found in reac1.dat and reac2.dat unless a cartesian file is specified (see USE INPUT XYZ section). Multiplicity can be assigned by appending _m<mult> to the SMILES string.
 
-*Reactant list (SMILES): C, [OH]*
+*Reactant list (SMILES): C, [OH]_m2*
 
 
 
@@ -38,14 +38,14 @@ List up to two, comma-separated SMILES strings.  OpenBabel will generate an xyz 
 
 List up to two, comma-separated SMILES strings 
 
-*Product list:  [CH3], O*
+*Product list:  [CH3], O_m1*
 
 
 
 **Reaction type:**
 
-Specify the type of reaction.  Although EStokTP can accept abstraction, addition, isomerization, and beta-scission, currently 
-TorsScan can only generate the input for abstractions. Default is blank, which means that the job is a well.
+Specify the type of reaction.  Currently TorsScan will perform Abstraction, Addition, and Isomerization reactions.
+Default is blank, which means that the job is a well.
 
 *Reaction type: Abstraction*
 
@@ -60,16 +60,16 @@ Specify the number of transition states. 0 and 1 are self explanatory, 2 and 3 w
 
 ### GEOMETRY OPTIONS
 
-**Use QTC xyz:**
+**Use input xyz:**
 
-A user can choose to use an xyz or geo file instead of having OpenBabel generate it from the SMILES string by setting this keyword to True, prog/method/basis, or logfilename.log.  Inappropriately named, the xyz for this keyword does not need to come from QTC. Using true will mean that the xyz or geo are in the working directory and are named <SMILES>.dat (geo files do not have the extra two lines at the top with the first having the number of atoms and the second being blank/comment). Using <logfilename>.log will make TorsScan parse out the coordinates from a Molpro or Gaussian job (Note that using TorsScan for more than one species will break this method until I update it to use <SMILES>.log instead of <logfilename>.log).  Prog/method/basis will search in the PACC database for an xyz or geo of each SMILES molecule.  Default is false.
+A user can choose to use an xyz or geo file instead of having OpenBabel generate it from the SMILES string by setting this keyword to True, cartesianfile.xyz, or logfilename.log. Using true will mean that the xyz or geo are in the working directory and are named <SMILES>.xyz or <SMILES>.geo (geo files do not have the extra two lines at the top with the first having the number of atoms and the second being blank/comment). Using <logfilename>.log will make TorsScan parse out the coordinates from a Molpro or Gaussian job (Note that using TorsScan for more than one species will break this method until I update it to use <SMILES>.log instead of <logfilename>.log). Default is false.
 
-*Use QTC xyz: gaussian/b3lyp/sto-3g*
+*Use input xyz: True*
 
 
 **Use xyz as:**
 
-EstokTP optimizes geometries in multiple of its modules.  This keyword tells TorsScan which of these modules the geometry from the previous keyword should replace.  Using start will use the geometry instead of generating an OpenBabel geometry and start EstokTP from the beginning (i.e., from level0 aka Opt_reac1).  Using 0 or level0 will use the geometry instead of optimizing at level0 so EstokTP will begin at level1 (aka Opt_reac1_1).  Finally 1 or level1 will use the geometry as the level1 optimization and skip straight to the hindered rotor scans BUT this is not quite working yet because it needs to also get force constant information from somewhere and I haven’t set it up to do that yet. Default is start.
+EstokTP optimizes geometries in multiple of its modules.  This keyword tells TorsScan which of these modules the geometry from the previous keyword should replace.  Using start will use the geometry instead of generating an OpenBabel geometry and start EstokTP from the beginning (i.e., from level0 aka Opt_reac1).  Using 0 or level0 will use the geometry instead of optimizing at level0 so EstokTP will begin at level1 (aka Opt_reac1_1).  Finally 1 or level1 will use the geometry as the level1 optimization and skip straight to the hindered rotor scans BUT this is not quite working yet because it needs to also get force constant information in the output directory. Default is start.
 
 *Use xyz as: 0*
 
@@ -78,7 +78,8 @@ EstokTP optimizes geometries in multiple of its modules.  This keyword tells Tor
 
 **Run on node:**
 
-This lets the user specify which blues node to run EstokTP on.  If the input is d or debug, TorsScan will build all the necessary EstokTP files but not run them.  Specifying b###  will submit the job to that blues node.  Using 0 will run ES on your current node (on the login node if you haven’t sshed onto a blues node).  Using 0 while on a login nodeis recommended if you are running thermochemistry and anharmonics because those don’t have the capability of submitting to a node at the moment. Default is 0.
+This lets the user specify which blues node to run EstokTP on.  If the input is d or debug, TorsScan will build all the necessary EstokTP files but not run them.  Specifying b###  will submit the job to that blues node.  A comma seperated list of b###,b###,b### will submit the monte carlo level0 job to multiple nodes, and the remaining modules will be sent to teh first in the list. Using 0 will run EStokTP on your current node (on the login node if you haven’t sshed onto a blues node). 
+Default is 0.
 
 *Run on node: b431*
 
@@ -97,12 +98,17 @@ Specify the number of cores for your low level EstokTP computations. Default is 
 *No. of cores low: 16*
 
 
-**Memory:**
+**Memory high:**
 
-Specify the memory in MW. Default is 200.
+Specify the memory for high level computations in MW. Default is 200.
 
 *Memory: 500*
 
+**Memory low:**
+
+Specify the memory for low level computations in MW. Default is 200.
+
+*Memory: 500*
 
 ### EStokTP OPTIONS
 
@@ -112,12 +118,6 @@ Give the number of points for the Monte Carlo sampling (The level0 Opt).  Defaul
 
 *No. MC sampling points: 5*
 
-
-**No. of MC sampling points:**
-
-Give the number of points for the Monte Carlo sampling (The level0 Opt).  Default is 5.
-
-*No. MC sampling points: 5*
 
 
 **Calculate no. of MC points:**
