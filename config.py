@@ -46,7 +46,6 @@ class CONFIG:
                     dic[key] = val
                 else:
                     dic[key] = None
-
         return dic
 
 class ARGS:
@@ -57,6 +56,8 @@ class ARGS:
         ####DEFAULT INPUTS#########################
         self.reacs    = 'CCC'   #list of SMILE strings of reactants
         self.prods    = ''      #list of SMILE strings of products
+        self.wellr    = 'false'
+        self.wellp    = 'false'
         self.reactype = ''      #type of reaction (default well)
         self.nTS      = '0'     #Number of transition states (default 0)
 
@@ -68,10 +69,12 @@ class ARGS:
         self.nodes    = 'debug' #Default node to run on in is debug (won't run)
         self.coresh   = '16'    #Default high number of cores is 16
         self.coresl   = '10'     #Default low number of cores is 10
-        self.mem   = '200'     #Default is 200 MW
+        self.memh     = '200'     #Default is 200 MW
+        self.meml     = '200'     #Default is 200 MW
 
         self.zedoptions   = 'internal'     #Guassian options
         self.oneoptions   = 'internal'     #Guassian options
+        self.adiabatic   = 'false'     #Guassian options
         self.esoptions   = ''     #estoktp options
         self.nsamps   = ''     #Number of MC sampling points
         self.nrotor   = '0'      #Number of rotors
@@ -114,8 +117,6 @@ class ARGS:
         templist   = []
         for line in lines:
             line = line.strip().split(':')
-            if 'kTP' in line:
-                self.jobs.append('kTP')
             if key_check(comps,line[0]) and line[1] != '':
                 if key_check(templist,comps[line[0]]) ==  False:
                     self.meths.append([comps[line[0]],line[1],line[2]])
@@ -132,21 +133,26 @@ class ARGS:
         """ 
         options = read_file(optionfile)
     
+        options      = options.replace('  ',' ')
+        options      = options.replace('	','')
         self.get_theory_params(options)
-    
         options      = options.split('\n')
-      
+        
         self.reactype= get_param(self.reactype, 'Reaction type', options)
         self.nTS     = int(get_param(self.nTS , 'of transition', options))
-        self.reacs   = get_param(self.reacs   , 'Reactant'     , options).replace(' ','').split(',')
-        self.prods   = get_param(self.prods   , 'Product'      , options).replace(' ','').split(',')
+        self.reacs   = get_param(self.reacs   , 'Reactant list', options).replace(' ','').split(',')
+        self.prods   = get_param(self.prods   , 'Product list' , options).replace(' ','').split(',')
+        self.wellr   = get_param(self.wellr   , 'Reactant well', options)
+        self.wellp   = get_param(self.wellp   , 'Product well' , options)
+        
 
         self.nodes   = get_param(self.nodes    , 'node'         , options).replace(' ','').split(',')
         self.coresh  = get_param(self.coresh  , 'cores high'   , options)
         self.coresl  = get_param(self.coresl  , 'cores low'    , options)
-        self.coresl  = get_param(self.coresl  , 'cores  low'   , options)
-        self.mem     = get_param(self.mem     , 'Memory'    , options)
-
+        self.meml    = get_param(self.meml     , 'Memory'       , options)
+        self.memh    = get_param(self.memh     , 'Memory'       , options)
+        self.meml    = get_param(self.meml     , 'Memory low'  , options)
+        self.memh    = get_param(self.memh     , 'Memory high'  , options)
         self.XYZ     = get_param(self.XYZ     , 'Use QTC'      , options)
         self.XYZ     = get_param(self.XYZ     , 'Use input xyz', options)
         self.xyzstart= get_param(self.xyzstart, 'Use xyz as'   , options)
@@ -160,7 +166,8 @@ class ARGS:
         self.oneoptions  = get_param(self.oneoptions  , 'Gaussian optim'     , options)
         self.oneoptions  = get_param(self.oneoptions  , 'Level1 options'     , options)
         self.zedoptions  = get_param(self.zedoptions  , 'Level0 options'     , options)
-        self.esoptions  = get_param(self.zedoptions  , 'Extra estoktp.dat'     , options)
+        self.adiabatic  = get_param(self.adiabatic    , 'Adiabatic scan'     , options)
+        self.esoptions  = get_param(self.esoptions  , 'Extra estoktp.dat'     , options)
         self.nsamps  = get_param(self.nsamps  , 'sampling'     , options)
         self.nrotor  = get_param(self.nrotor  , 'Number of rotors'     , options)
         self.abcd    = get_param(self.abcd    , 'Calculate no. MC points'     , options)
@@ -186,6 +193,10 @@ class ARGS:
             self.restart = int(self.restart)
         if '1' in self.xyzstart and self.restart < 2:
             self.restart = 2
+        if self.reactype:
+            self.jobs.append('kTP')
+            if (self.reactype.lower() == 'addition' or self.reactype.lower() == 'isomerization') and (self.wellp or self.wellp.lower() == 'false'):
+                    self.wellp = 'true'
         #if '0' in self.xyzstart and self.restart < 1:
         #    self.restart = 1
         return
