@@ -67,21 +67,21 @@ class RESULTS:
             else:
                msg += 'No energy found for prod{:g}\n'.format(i+1)
 
-        if self.args.nTS > 0:
+        if self.args.reactype:
             if io.check_file('me_files/ts_en.me'):
                 hlen.append(float(io.read_file('me_files/ts_en.me')))
             else:
                 msg += 'No energy found for ts\n'
-            if self.args.nTS > 1:
+            if self.args.wellr and self.args.wellr != 'false':
                 if io.check_file('me_files/wellr_en.me'):
                     hlen.append(float(io.read_file('me_files/wellr_en.me')))
                 else:
                    msg += 'No energy found for wellr\n'
-                if self.args.nTS > 2:
-                    if io.check_file('me_files/wellp_en.me'):
-                        hlen.append(float(io.read_file('me_files/wellp_en.me')))
-                    else:
-                       msg += 'No energy found for wellp\n'
+            if self.args.wellp and self.args.wellp != 'false':
+                if io.check_file('me_files/wellp_en.me'):
+                    hlen.append(float(io.read_file('me_files/wellp_en.me')))
+                else:
+                   msg += 'No energy found for wellp\n'
         log.warning(msg)
         self.hlen = hlen
         return hlen
@@ -126,7 +126,10 @@ class RESULTS:
             freqs   = ', '.join(freq for freq in freqs[::-1])
     
         if lines2 != '':
-            pfreqs  = pa.EStokTP_freqs(lines2)
+            try:
+                pfreqs  = pa.EStokTP_freqs(lines2)
+            except:
+                pfreqs  = []
             d['pfreqs'] = pfreqs
             pfreqs  = ', '.join('{:>9}'.format(freq) for freq in pfreqs)
         else: 
@@ -263,7 +266,7 @@ class RESULTS:
                msg += printstr
        for j,prod in enumerate(self.args.prods, start=1):
            if prod in d:
-               if self.args.nTS > 1:
+               if self.args.reactype:
                    printstr, d[prod] = self.parse_thermo(i+j, prod, d[prod])
                    msg += printstr
                else:
