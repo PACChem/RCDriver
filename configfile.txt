@@ -4,6 +4,6 @@ g09     = soft add +g09-e.01
 
 ssh     = /usr/bin/ssh
 bin     = /home/elliott/bin
-estoktp = /lcrc/project/PACC/codes/EStokTP/exe/estoktp.x
-qtc     = /home/elliott/Packages/QTC/qtc
-x2z     = /home/elliott/bin/x2z
+estoktp = /home/elliott/Packages/estoktp/exe/estoktp.x
+qtc     = /home/elliott/Packages/fork_QTC/QTC-1/qtc
+x2z     = x2z

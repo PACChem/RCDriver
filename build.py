@@ -3,20 +3,23 @@
 import os
 import numpy as np
 import sys
+import logging
+log = logging.getLogger(__name__)
 
 class MOL:
-    def __init__(self,paths, opts,typemol = 'reac'):
+    def __init__(self,paths, opts,typemol = 'reac', reactype = ''):
         """
         MOL object is reac, prod, or ts.
         """ 
         self.typemol    = typemol
         self.paths      = paths
         self.convert    = paths['x2z'] 
-        global ob, pa, io
+        global ob, pa, io, qc
         sys.path.insert(0, paths['qtc'])
         import obtools as ob
         import iotools as io
         import patools as pa
+        import qctools as qc
 
         #OPTIONS##############################
         self.nsamps     = opts[0]    #number of MonteCarlo sampling points
@@ -28,9 +31,9 @@ class MOL:
         self.xyzstart   = opts[6]
         self.MDTAU      = opts[7]
         ######################################
-        self.ijk        = [0, 0, 0]
+        self.ijk        = [0, 0, 0, 0]
         self.sort       = None
-        
+        self.reactype   = reactype
     
     def build_xyzfile(self, smiles):
 
@@ -43,8 +46,9 @@ class MOL:
         OUTPUT:
         smilesfilename -- name of cartesian coordinate file
         """
-        smilesfilename = ob.get_smiles_filename(smiles) 
+        smilesfilename = ob.get_smiles_filename(smiles)
         cartlines = ''
+        found = True
         if '_m' in smiles:
             smiles, self.mult = smiles.split('_m')
         else:
@@ -52,6 +56,7 @@ class MOL:
 
         if self.XYZ.lower() == 'false':
             cartlines = build_obcart(smiles,self.mult)
+            found = False
 
         elif '.log' in self.XYZ.lower():
             cartlines = io.read_file('../' + self.XYZ)
@@ -61,15 +66,13 @@ class MOL:
             if io.check_file(self.XYZ):
                 cartlines = io.read_file(self.XYZ)
             else:
-                print('ERROR: no .geo or .xyz provided')
-                print('...Using openbabel instead')
+                log.warning('no .geo or .xyz provided\n...Using openbabel instead')
                 cartlines = build_obcart(smiles, self.mult)
-        
+                found = False
         elif len(self.XYZ.split('/') ) < 2:
-            cartlines, ijk = read_cart(smiles, self.mult)
+            cartlines, ijk, found = read_cart(smiles, self.mult, self.reactype)
             if ijk[0] != 0:
                 self.ijk = ijk
-
         elif len(self.XYZ.split('/')) > 2:  
             self.XYZ = self.XYZ.replace('g09','gaussian')
 
@@ -82,17 +85,19 @@ class MOL:
                 cartlines = cartlines.split('\n')[0] + ' \n\n' + cartlines
 
             else:
-                print ('\nERROR: No geometry found at ' + io.db_opt_path(self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2], None, smiles)
+                log.warning('No geometry found at ' + io.db_opt_path(self.XYZ.split('/')[0], self.XYZ.split('/')[1], self.XYZ.split('/')[2], None, smiles)
                                + smilesfilename + '.xyz' + '\n...building using OpenBabel instead')
                 cartlines = build_obcart(smiles,self.mult)
+                found = False
         else:
-            print('\nERROR: You have not specified a valid way to get the coordinates.  Use false, true, smiles.log, smiles.geo, smiles.xyz, or prog/method/basis')
+            log.error('You have not specified a valid way to get the coordinates.  Use false, true, smiles.log, smiles.geo, smiles.xyz, or prog/method/basis')
+            found = False
         io.write_file(cartlines,smilesfilename + '.xyz')
-        return smilesfilename
+        return smilesfilename, found
 
-    def cart2zmat(self,smiles): 
+    def cart2zmat(self,smiles, select = []): 
         """
-        Runs x2z by Yuri Georgievski on a file of Cartesian coordinates and collects
+        `Runs x2z by Yuri Georgievski on a file of Cartesian coordinates and collects
         the internal coordinate and torsional angle information that it outputs
         """
         import re
@@ -104,7 +109,7 @@ class MOL:
         angles  = []
         consts  = []
 
-        smilesfilename = self.build_xyzfile(smiles)
+        smilesfilename, found = self.build_xyzfile(smiles)
         mol         = ob.get_mol(smiles,make3D=True)
         self.charge = ob.get_charge(mol)
         self.stoich = ob.get_formula(mol
@@ -121,19 +126,19 @@ class MOL:
         else:
             os.system('{0}; {1}; {2} {3}_m{4}.xyz >  {5}'.format(gcc, intel, self.convert, smilesfilename, str(self.mult),tempfile))
 
-        if os.stat(tempfile).st_size < 80:
-            print('Failed')
-            print('Please check that directory name and cartesian coordinate file name are equivalent')
-            print('Please check that test_chem is in location: ' +  self.convert)
-            print('Using OpenBabel zmat: no hindered rotors will be specified')
-            atoms, measure = build_obzmat(smiles)                     #If test_chem fails use openbabel to get zmat
-            self.symnum = ' 1'
-            self.ilin   = ' 0'
-            if len(atoms) < 3:                                        #Linear if dihedral (NEEDS TO ACTUALLY BE COMPUTER)
-                self.ilin =' 1' 
-            return atoms, measure, angles
+        if os.stat(tempfile).st_size < 80 or 'not connected' in io.read_file(tempfile):
+            log.warning('Failed')
+            log.warning('Please check that directory name and cartesian coordinate file name are equivalent')
+            log.warning('Please check that test_chem is in location: ' +  self.convert)
+            log.warning('Using OpenBabel zmat: no hindered rotors will be specified')
+            #Build openbabel zmat if x2z fails
+            atoms, measure = build_obzmat(smiles) 
+            self.symnum    = ' 1'
+            self.ilin      = ' 0'
 
-        ####Get relevant data from Test_Chem output file########
+            return atoms, measure, angles, found, ''
+
+        ####Get relevant data from x2z output file########
         ########################################################
         props, lines = io.read_file(tempfile).split('Z-Matrix:\n')
         io.rm(tempfile)
@@ -157,10 +162,10 @@ class MOL:
 
         #Rearrangement
         props, order = props.split('Z-Matrix atom order:')
-        self.sort = []
+        self.sort = {}
         for index in order.split('\n')[1:-2]:
-            self.sort.append(index.split('>')[1])
-
+            index = index.replace('X','0')
+            self.sort[int(index.split('>')[1])] = str(index.split('-->')[0])
         #rotational groups
         groups = ''
         if len(lines.split("Rotational groups:")) > 1:
@@ -168,11 +173,20 @@ class MOL:
 
         #zmatrix connectivity
         lines = lines.split('\n')
+        twoorthree = 2
+        if self.ilin == ' 1':
+           twoorthree = 3
+        twoorthree = 3 #seems to need three coordinates every time?
         for i,line in enumerate(lines):
+            if len(consts)%twoorthree != 0:
+                consts.append(line.split(',')[-1].strip())
+            if 'x' in line.lower():
+                consts.append(line.split(',')[2].strip())
+                if len(line.split(',')) > 4:
+                    consts.append(line.split(',')[4].strip())
             if line == '':
                 break
             atoms.extend([line.rstrip('\n').replace(' ','').split(',')])     #Main part of ZMAT
-
         #zmatrix parameters
         for j in range(i+1,len(lines)):
             if lines[j]:
@@ -182,11 +196,7 @@ class MOL:
 
         #Hindered rotor dihedral angles and constant angles
         for n in range(len(lines[j:])):
-            if "Const" in lines[j+n] and lines[j].split(':')[1].rstrip('\n').strip() != '':
-                consts  = lines[j+n].split(':')[1].strip().split()   
-                if "Rot" in lines[j+n] and lines[j+n].split(':')[1].rstrip('\n').strip() != '':
-                    angles  = lines[j+n].replace(" ","").upper().split(':')[1].strip().split(',')   
-            elif "Rot" in lines[j+n] and lines[j+n].split(':')[1].rstrip('\n').strip() != '':
+            if "Rot" in lines[j+n] and lines[j+n].split(':')[1].rstrip('\n').strip() != '':
                     angles  = lines[j+n].replace(" ","").upper().split(':')[1].strip().split(',')  
         
         #Reformat zmatrix parameters
@@ -197,58 +207,96 @@ class MOL:
         for angle in measure:
             if 'R' in angle[0]:
                 angle[1] = str(float(angle[1]) * 0.529177) #bohr to angstrom
-
         #Put dummy atoms paramters inside zmat
-        for i, row in enumerate(atoms):
-            if 'X' in row[0]:
-                j=0
-                for meas in measure:
-                    if   meas[0] == row[2]:
-                        atoms[i][2] = '{:.6f}'.format(float(meas[1]))
-                        measure = np.delete(measure, j, axis=0)
-                        j-=1
-                    elif meas[0] == row[4]:
-                        atoms[i][4] = '{:.2f}'.format(float(meas[1]))
-                        measure = np.delete(measure, j, axis=0)
-                        j-=1
-                    elif len(row) > 5:
-                         if meas[0] == row[6]:
-                            atoms[i][6] = '{:.2f}'.format(float(meas[1]))
-                            measure = np.delete(measure, j, axis=0)
-                            j-=1
-                    j+=1
-
+        #for i, row in enumerate(atoms):
+        #    if 'X' in row[0]:
+        #        j=0
+        #        for meas in measure:
+        #            if  meas[0] == row[2]:
+        #                atoms[i][2] = '{:.6f}'.format(float(meas[1]))
+        #                measure = np.delete(measure, j, axis=0)
+        #                j-=1
+        #            if len(row) > 3:
+        #                if meas[0] == row[4]:
+        #                    atoms[i][4] = '{:.2f}'.format(float(meas[1]))
+        #                    measure = np.delete(measure, j, axis=0)
+        #                    j-=1
+        #            if len(row) > 5:
+        #                 if meas[0] == row[6]:
+        #                    atoms[i][6] = '{:.2f}'.format(float(meas[1]))
+        #                    measure = np.delete(measure, j, axis=0)
+        #                    j-=1
+        #            j+=1
         #Put constant angles inside zmat 
         for angle in consts:
             for i, row in enumerate(atoms):
-                if len(row) > 5:
-                    if angle in row[6]:
+                if len(row) > 6:
+                    if angle == row[6]:
                         j=0
                         for meas in measure:
                             if  meas[0] == angle:
-                                atoms[i][6] = '{:.6f}'.format(float(meas[1]))
+                                atoms[i][6] = '{:.4f}'.format(float(meas[1]))
                                 measure = np.delete(measure, j, axis=0)
                                 j-=1
                             j+=1
-                elif len(row) > 3:
-                    if angle in row[4]:
+                if len(row) > 4:
+                    if angle == row[4]:
                         j=0
                         for meas in measure:
                             if  meas[0] == angle:
-                                atoms[i][4] = '{:.6f}'.format(float(meas[1]))
+                                atoms[i][4] = '{:.4f}'.format(float(meas[1]))
+                                measure = np.delete(measure, j, axis=0)
+                                j-=1
+                            j+=1
+                if len(row) > 2:
+                    if angle == row[2]:
+                        j=0
+                        for meas in measure:
+                            if  meas[0] == angle:
+                                atoms[i][2] = '{:.6f}'.format(float(meas[1]))
                                 measure = np.delete(measure, j, axis=0)
                                 j-=1
                             j+=1
         #Count rotors
         nmethylgroups = 0 
+        rotors = {}
+        groups = groups.split('Beta')[0]
+        groups = groups.split('no')[0]
         for rotor in groups.split('\n'):
-            grouplist = rotor[3:].lower().split()
-            if 'c1h3' in grouplist:
-               nmethylgroups += 1
+            if rotor:
+                grouplist = rotor.lower().split()[1:]
+                if 'c1h3' in grouplist:
+                   nmethylgroups += 1
+                   rotors[rotor.split()[0]] = [0, grouplist]
+                else:
+                   rotors[rotor.split()[0]] = [1, grouplist]
+        ##reorder angles to have nonmethyl rotors first
+        methylrotors = []
+        nonmethylrotors = []
+        for rotor in rotors:
+            if rotors[rotor][0] == 1:
+                nonmethylrotors.append(rotor)
+            else:
+                methylrotors.append(rotor)
+        angles = nonmethylrotors + methylrotors
+        for i, angle in enumerate(angles):
+             if str(i+1) in select or angle.lower() in select:
+                 del angles[i]
+                 angles.insert(0, angle)
+       
+        msg = '' 
+        if angles:
+            msg += '{}\n  Num\tLabel\tgroup1\tgroup2\n'.format(smiles)
+            for i, angle in enumerate(angles):
+                msg += '  {:g}\t{}\t{}\t{}\n'.format(i+1, angle, rotors[angle][1][0], rotors[angle][1][1])
+        
         self.nrotors = len(angles)
         self.nrotors = self.nrotors - nmethylgroups
-
-        return atoms, measure, angles
+        
+        #diatomics and triatomics must have 0 for ilin in EStokTP
+        if len(atoms) < 5:                               
+            self.ilin  =' 0' 
+        return atoms, measure, angles, found, msg
          
 
     def build(self, n, smiles, angles, atoms = [], measure = []):
@@ -256,9 +304,12 @@ class MOL:
         Builds reacn.dat or prodn.dat for EStokTP withh user defined nosmps (Monte Carlo sampling points
         for geometry search) and nhindsteps (number of points on the PES) 
         """
-        smilesfilename = ob.get_smiles_filename(smiles)
-        
-        if self.typemol == 'reac' or self.typemol == 'prod':
+        if   n == 3:
+            self.typemol = 'wellr'
+        elif n == 4:
+            self.typemol = 'wellp'
+             
+        if self.typemol == 'reac' or self.typemol == 'prod' or 'well' in self.typemol:
             atoms, measure, angles  = update_interns(n,atoms,measure,angles)
             if not self.nsamps:
                 if len(self.abcd.split(',')) >3:
@@ -273,7 +324,7 @@ class MOL:
             zmatstring  = 'nosmp dthresh ethresh\n'     
             zmatstring += self.nsamps + '  1.0  0.00001\n'
             #Torsional Scan Parameters#############
-            zmatstring += tau_hind_str(atoms, angles, self.interval, self.nsteps, self.MDTAU)
+            zmatstring += tau_hind_str([atoms], [angles], self.interval, self.nsteps, self.MDTAU)
             #Size and linearity of molecule###########
             zmatstring += '\nnatom natomt ilin\n'
             ndummy = count_dummy(atoms)
@@ -286,8 +337,8 @@ class MOL:
                     b = int(b)
                     c = int(c)
                     d = int(d)
-                    self.nsamps = min(a + b * c**self.nrotors, d)
-            self.nsamps = str(np.ceil(float(self.nsamps) / self.nodes))
+                    self.nsamps = min(a + b * c**1, d)
+            self.nsamps = str(int(np.ceil(float(self.nsamps) / self.nodes)))
             #MC Parameters#############
             zmatstring  = 'nosmp dthresh ethresh\n'     
             zmatstring += self.nsamps + '  1.0  0.00001\n'
@@ -296,22 +347,46 @@ class MOL:
             if n == 'ts':
                 import get_sites
                 #i,j,k sites###########################
-                zmatstring += '\nisite jsite ksite\n'
+                if smiles.lower() == 'isomerization':
+                    zmatstring += '\nisite ji ki\n'
+                else:
+                    zmatstring += '\nisite jsite ksite\n'
                 if self.ijk[0] != 0:
-                    zmatstring += ' '.join(self.ijk)
+                    zmatstring += ' '.join(self.ijk[:3])
                 else:
                     lines = io.read_file('../rmg.dat')
                     zmatstring += ' '.join(get_sites.sites(lines))
-                if self.sort:
-                    for i in range(3):
-                        self.ijk[i] = str(int(self.sort[int(self.ijk[i])-1])+1)
-                zmatstring += '\n\nrmin rmax nr\n 1.0 2.5 8\n  -->aabs1,babs1,aabs2,babs2,babs3\n 90., 180., 90., 175., 90.\n'
+                bond = ''.join(sorted(self.bond.lower()))
+                bondlengths = {'cc':1.54, 'ch':1.09, 'hh':.74,'nn':1.45,'oo':1.48,'cn':1.47,'co':1.43,'ho':1.2,'hn':.99}
+                if smiles.lower() == 'isomerization':
+                    rmin1 = '2.0'
+                    rmin2 = '1.0'
+                    rstep1 = '.2'
+                    rstep2 = '.1'
+                    zmatstring += '\n\nrmin1 rstp1 rmin2 rstp2 ireact2\n {} {} {} {} {}\n'.format(rmin1,rstep1,rmin2,rstep2,self.ijk[3])
+                else:
+                    rmin = '1.0'
+                    rmax = '2.5'
+                    nr   = '8'
+                    if smiles.lower() == 'abstraction':
+                        rmin = '0.7'
+                        rmax = '2.2'
+                        if bond in bondlengths:
+                            rmin = str(bondlengths[bond])    
+                            rmax = str(bondlengths[bond] + 1.0)    
+                    elif smiles.lower() == 'addition':
+                        rmin = '1.4'
+                        rmax = '2.8'
+                        if bond in bondlengths:
+                            rmin = str(bondlengths[bond] + 0.2)    
+                            rmax = str(bondlengths[bond] + 1.6)    
+                    zmatstring += '\n\nrmin rmax nr\n {} {} {}\n  -->aabs1,babs1,aabs2,babs2,babs3\n 90., 90., 90., 90., 90.\n'.format(rmin,rmax,nr)
 
         #Typical Z-Matrix########################
         zmatstring += '\ncharge  spin  atomlabel\n'
         zmatstring += str(self.charge) + ' ' + str(self.mult) + '\n'
 
-        if self.typemol == 'reac' or self.typemol == 'prod':
+        if self.typemol == 'reac' or self.typemol == 'prod' or 'well' in self.typemol:
             for row in atoms:
                 for j in range(len(row)):
                     zmatstring += row[j] + ' '
@@ -329,11 +404,12 @@ class MOL:
             
             zmatstring += '\n'
         #Sym factor and no. of electronic states#
-        zmatstring += '\nSymmetryFactor\n' + self.symnum + '\n'
+        zmatstring += '\nSymmetryFactor\n' +  self.symnum + '\n'
         zmatstring += '\nnelec\n1\n 0.  ' + str(self.mult) + '\n\nend\n'
 
         #Build Reac/Prodnum_opt.out for starting after level0 or level1
-        if self.xyzstart == '0' or self.xyzstart == '1':
+        if (self.xyzstart == '0' or self.xyzstart == '1') and smiles:
+            smilesfilename = ob.get_smiles_filename(smiles)
             optim = build_optout(self.xyzstart, self.XYZ, measure, angles, deletedangles, smiles, smilesfilename)
             io.write_file(optim, '../output/' + self.typemol + str(n) + '_opt.out')
 
@@ -386,139 +462,267 @@ def build_molpro(meth,freqcalc,opt):
     molstr += '! the molden line should be left as it is\n\nput,molden,molpro.molden\n\n---\n\n'
     molstr += 'End3\n\n\n\n'
 
-    molfile = meth[0]
-    if 'hind' in molfile:
-        molfile = 'onedtau'
-    if 'hlevel' in molfile:
-        molfile = 'hl'
-    if 'symm' in molfile:
-        molfile = 'symm'
-    molfile += '_molpro.dat'
-    return molstr, molfile
+    return molstr
 
+def build_mehead():
+    head = '!***************************************************\n!               GLOBAL SECTION\n!***************************************************\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n!\n!\nTemperatureList[K]                      300 400 500 600 700 800 900 1000 1100 1200 1300 1400 1500 1600 1700 1800 1900 2000 2100 2200 2300 2400 2500  \nPressureList[atm]                       1.0     10.   100.  1000. 10000.\n!\n!\nEnergyStepOverTemperature               .2         ! [Discretization energy step (global relax matrix)] / T                   \nExcessEnergyOverTemperature             30         ! [Highest barrier in the model (global relax matrix)] / T                      \nModelEnergyLimit[kcal/mol]              400        ! Highest reference energy used in the calculation ( or ReferenceEnergy[kcal/mol])\n!\nCalculationMethod                       direct     ! direct or low-eigenvalue                     \n!\nWellCutoff                              20         ! well truncation parameter : Max { dissociation limit (min barrier rel. to bottom of the well) / T }\nChemicalEigenvalueMax                   0.2        ! Max chemical eigenvalue / Lowest Collision relaxation eigenvalue \n!\nReductionMethod                         diagonalization ! [low eigenvalue method only] diagonalization or projection (default)\n!      \n!!!!!!!!!test!!!!!!!!!!!!!!!!!!!!\n!WellCutoff                            10\n!ChemicalEigenvalueMin                 1.e-6          #only for direct diagonalization method\n!!!!!!!!test!!!!!!!!!!!!!!!!!!!!!!!!!!\nAtomDistanceMin[bohr]                  1.3\n!!\nRateOutput                              rate.out                        ! output file name for rate coefficients                         \n!\n!\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n!***************************************************\n!               MODEL SECTION\n!***************************************************\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n!\n!                          \nModel        \n!                                                           \n  EnergyRelaxation                                                      ! Default collisional energy relaxation kernel                              \n    Exponential                                                         ! Currently the only possible energy relaxation model              \n       Factor[1/cm]                     260                             ! (Delta_E_down)^(0) @ standard T (300 K)                          \n       Power                            0.875                           ! Power n in the expression (Delta_E_down) = (Delta_E_down)^(0) (T/T0)^(n)\n       ExponentCutoff                   10                              ! if (Delta_E) / (Delta_E_down) > value  transition probability is zero     \n    End  \n!                                                               \n'
+    head += '  CollisionFrequency                                                    ! Collision frequency model\n    LennardJones                                                        ! Currently the only possible collisional frequency model  based on LJ potential\n       Epsilons[K]                       90.58  617.0                   ! Epsilon_1 and Epsilon_2 (630.4 x kB x Na = 1.25)(cm-1 to K = x 1.4) Ar and c7h7o2 (from Murakami)        \n       Sigmas[angstrom]                  3.54    5.62                   ! Sigma_1 and Sigma_2 (from Murakami) \n       Masses[amu]                       39.948 29.0                    ! Masses of the buffer gas molecule and of the complex (check order)\n    End      \n!\n!*************************************************\n!\n!***************************************************\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n!***************************************************\n!  REACTANTS\t\t\t\t\t\n!***************************************************\n\n\n'
+    return head 
 
-def build_theory(meths,nTS, optoptions):
+def build_theory(meths,tss, zedoptions, oneoptions, adiabatic):
     """
     Builds theory.dat 
     meth[0] is module, meth[1] is program, and meth[2] is theory/basis
     """
     theory    = ''
-    tsopt  = ' opt=(ts,calcfc,noeig,intern,maxcyc=50)\n '
-    rpopt  = ' opt=(' + optoptions +  ')\n '
-    vwopt  = ' opt=(internal,calcall) scf=qc\n '
-    allint = 'int=ultrafine nosym '
+    tsopt  = ' opt=(ts,calcfc,noeig,intern,maxcyc=50) \n '
+    rzpopt = ' opt=(' + zedoptions +  ') \n '
+    rpopt  = ' opt=(' + oneoptions +  ') \n '
+    vwopt  = ' opt=(internal,calcall) \n '
+    allint = 'int=ultrafine nosym scf=xqc'
+    ircfor = ' irc(forward,calcall,stepsize=3,maxpoints=10)\n int=ultrafine nosym iop(7/33=1)\n'
+    ircrev = ' irc(reverse,calcall,stepsize=3,maxpoints=10)\n int=ultrafine nosym iop(7/33=1)\n'
+    ircend = ' HRcc 1 1'
+    ts    = ''
+    wellr = ''
+    wellp = ''
+    if tss[0] != 'false':
+        ts = tss[0]
+        if tss[1] != 'false':
+            wellr = tss[1]
+        if tss[2] != 'false':
+            wellp = tss[1]
 
     for meth in meths:
         if 'molpro' in meth[1]:
-
+            prefix = meth[0]
+            if 'hind' in prefix:
+                prefix = 'onedtau'
+            if 'hlevel' in prefix:
+                prefix = 'hl'
+            if 'symm' in prefix:
+                prefix = 'symm'
+              
             theory += meth[0] + ' ' + meth[1] + '\n\n'
-            if meth[0] == 'level1':
-                freqcalc = True
+            molpro  = ''
+            if '.txt' in meth[2]:
+                if not os.path.sep in meth[2]:
+                    meth[2] = '..' + os.path.sep + meth[2]
+                if io.check_file(meth[2]):
+                    molpro = io.read_file(meth[2])
+                else: 
+                    log.info('molpro template at {} not found'.format(meth[2]))
             else:
-                freqcalc = False
-            if meth[0] == 'hlevel':
-                opt = False
-            else:
-                opt = True
-            molpro  = build_molpro(meth,freqcalc, opt)
-            io.write_file(molpro[0], molpro[1])
+                if meth[0] == 'level1':
+                    freqcalc = True
+                else:
+                    freqcalc = False
+                if meth[0] == 'hlevel':
+                    opt = False
+                else:
+                    opt = True
+                molpro  = build_molpro(meth,freqcalc, opt)
+            molfile = prefix +  '_molpro.dat'
+            io.write_file(molpro, molfile)
 
         elif  'g09' in meth[1]:   
-            theory += meth[0] + ' ' + meth[1] + '\n '
-            theory += meth[2] + rpopt + allint
+            theory += meth[0] + ' ' + meth[1] + ' restart 1\n '
+            if meth[0] == 'irc':
+                theory +=  meth[2] + ircfor + meth[2] + ircrev + ircend
+            elif 'hlevel' in meth[0]:
+                theory += meth[2] + '\n' + allint
+            elif meth[0] == 'level0':
+                theory += meth[2] + rzpopt + allint
+            elif meth[0] == 'hind_rotor' and adiabatic.lower() == 'true':
+                theory += meth[2] + rpopt + allint + '\n mhr_freqs '
+            else:
+                theory += meth[2] + rpopt + allint
             if meth[0] == 'level1':
                 theory += ' freq'
             theory += '\n\n'
-            if nTS > 2 and meth[0] == 'level1':
+            if wellr and meth[0] == 'level1':
                 theory += meth[0] + '_61 ' + meth[1] + '\n '
                 theory += meth[2] + vwopt + allint
                 theory += ' freq\n\n'
-            if nTS > 1 and meth[0] == 'level1':
+            if wellp and meth[0] == 'level1':
                 theory += meth[0] + '_51 ' + meth[1] + '\n '
                 theory += meth[2] + vwopt + allint
                 theory += ' freq\n\n'
-            if nTS > 0 and meth[0] != 'hlevel' and meth[0] != 'irc':
-                theory += meth[0] + '_ts ' + meth[1] + '\n '
+            if ts and meth[0] != 'hlevel' and meth[0] != 'irc':
+                theory += meth[0] + '_ts ' + meth[1] + ' restart 1\n '
                 theory += meth[2] + tsopt + allint
                 if meth[0] == 'level1':
                     theory += ' freq'
                 if meth[0] == 'hind_rotor':
-                    theory += '\n ' + meth[2] + rpopt + allint
+                    if adiabatic.lower() == 'true':
+                        theory += '\n ' + meth[2] + rpopt + allint+ '\n mhr_freqs ' 
+                    else:
+                        theory += '\n ' + meth[2] + rpopt + allint
                 theory += '\n\n'
-        else:
-            print meth[0] + ' is not a recognized program.\n'
+        elif meth[0].lower() != 'ktp':
+            log.warning(meth[0] + ' is not a recognized program.\n')
             
     theory += 'End'
 
     return theory 
 
-def build_estoktp(params, jobs, nreacs, nprods, nTS):
+def build_estoktp(params, jobs, nreacs, nprods, tss, xyzstart, foundlist,isTS=False):
     """
     Builds estoktp.dat
     """
-    stoich    = params[0]
+    stoichs   = params[0]
     reactype  = params[1]
     coresh    = params[2]
     coresl    = params[3]
-    mem       = params[4]
+    meml      = params[4]
+    memh      = params[5]
+    esoptions = params[6]
+    ts    = ''
+    wellr = ''
+    wellp = ''
+    if tss[0] != 'false':
+        ts = tss[0]
+        if tss[1] != 'false':
+            wellr = tss[1]
+        if tss[2] != 'false':
+            wellp = tss[1]
+    fullstoich = {}
+    if len(stoichs) > 2:
+        stoichs = stoichs[:2]
+    for stoich in stoichs:
+        stoich = qc.get_atom_stoich(stoich)
+        if 'C' in stoich:
+           if 'C' in fullstoich:
+               fullstoich['C'] += stoich['C']
+           else:
+               fullstoich['C']  = stoich['C']
+        if 'H' in stoich:
+           if 'H' in fullstoich:
+               fullstoich['H'] += stoich['H']
+           else:
+               fullstoich['H']  = stoich['H']
+        if 'O' in stoich:
+           if 'O' in fullstoich:
+               fullstoich['O'] += stoich['O']
+           else:
+               fullstoich['O']  = stoich['O']
+        if 'N' in stoich:
+           if 'N' in fullstoich:
+               fullstoich['N'] += stoich['N']
+           else:
+               fullstoich['N']  = stoich['N']
+        if 'S' in stoich:
+           if 'S' in fullstoich:
+               fullstoich['S'] += stoich['S']
+           else:
+               fullstoich['S']  = stoich['S']
+    stoich = ''
+    if 'C' in fullstoich:
+       if fullstoich['C'] > 1:
+           stoich += 'C{:g}'.format(fullstoich['C'])
+       else:
+           stoich += 'C'
+    if 'H' in fullstoich:
+       if fullstoich['H'] > 1:
+           stoich += 'H{:g}'.format(fullstoich['H'])
+       else:
+           stoich += 'H'
+    if 'O' in fullstoich:
+       if fullstoich['O'] > 1:
+           stoich += 'O{:g}'.format(fullstoich['O'])
+       else:
+           stoich += 'O'
+    if 'N' in fullstoich:
+       if fullstoich['N'] > 1:
+           stoich += 'N{:g}'.format(fullstoich['N'])
+       else:
+           stoich += 'N'
+    if 'S' in fullstoich:
+       if fullstoich['S'] > 1:
+           stoich += 'S{:g}'.format(fullstoich['S'])
+       else:
+           stoich += 'S'
     eststring = ' Stoichiometry\t' + stoich.upper()
     
     PossibleRxns = ['addition','abstraction','isomerization','betascission','well','']
     Tstype       = ['TS','wellr','wellp']
  
     if reactype.lower() not in PossibleRxns:
-        print('ReactionType ' + reactype +' is unrecognized, please use: Addition, Abstraction, Isomerization, or Betascission')
+        log.warning('ReactionType ' + reactype +' is unrecognized, please use: Addition, Abstraction, Isomerization, or Betascission')
     elif reactype != '' and reactype.lower() != 'well':
         eststring  += '\n ReactionType   ' + reactype
-        if nTS != 0:
-            eststring += '  ' + str(nTS) + 'TS'
-            if nTS > 1:
-                eststring += '\n WellR findgeom level1'
-                if nTS > 2:
-                    eststring += '\n WellP findgeom level1'
+        nts = 1
+        if reactype.lower() == 'addition' or reactype.lower () == 'isomerization':
+            nts -= 1
+        eststr = ''
+        if wellr:
+            nts += 1
+            if wellr.lower().startswith('find'):
+                eststr += '\n WellR findgeom level1'
+            else:
+                eststr += '\n WellR'
+        if wellp:
+            nts += 1
+            if wellp.lower().startswith('find'):
+                eststr += '\n WellP findgeom level1'
+            else:
+                eststr += '\n WellP'
+        eststring += '  ' + str(nts) + 'TS' + eststr
     if 'Irc' in jobs:
         eststring += '\n Variational'
+        eststring += '\n MdTunnel'
+    for line in esoptions.split(','):
+        eststring += '\n {}'.format(line.strip())
     if nprods > 0:
         eststring += '\n Prods'
     eststring +='\n Debug  2\n'
- 
     for job in jobs:
         if 'kTP' in job or 'irc' in job.lower():
-            eststring += job
+            eststring += ' ' + job
         else:
             for n in range(nreacs):
                 if 'Opt_1' in job:
                     eststring += '\n ' + job.rstrip('_1') + '_Reac' + str(n+1) + '_1'
-                else:
+                elif 'Opt' in job and xyzstart == '0' and foundlist[n] and not isTS:
+                        eststring += '\nn' + job + '_Reac' + str(n+1)
+                elif not isTS:
                     eststring += '\n ' + job + '_Reac' + str(n+1)
  
             for n in range(nprods):
                 if 'Opt_1' in job:
                     eststring += '\n ' + job.rstrip('_1') + '_Prod' + str(n+1) + '_1'
-                else:
+                elif 'Opt' in job and xyzstart == '0' and foundlist[n+nreacs] and not isTS:
+                        eststring += '\nn' + job + '_Prod' + str(n+1)
+                elif not isTS:
                     eststring += '\n ' +job + '_Prod' + str(n+1)
  
-            for n in range(nTS):
-                if 'Opt_1' in job:
-                    eststring += '\n ' + job.rstrip('_1') + '_' + Tstype[n]  + '_1'
-                elif 'Tau' in job:
-                    if n < 1:
-                        eststring += '\n ' +job + '_' + Tstype[n] 
-                elif 'Opt' in job and n <1:
-                    eststring += '\n Grid_' + job + '_' + Tstype[n]
-                    eststring += '\n ' + job + '_' + Tstype[n] + '_0'
-                    if 'nOpt' in job:
-                        eststring += '\n nTauo_' + Tstype[n]
-                    else:
-                        eststring += '\n Tauo_' + Tstype[n]
-                elif 'Opt' not in job:
-                    eststring += '\n ' + job + '_' + Tstype[n]
+            for n in range(3):
+                if tss[n] and tss[n] != 'false':
+                    if 'Opt_1' in job:
+                        eststring += '\n ' + job.rstrip('_1') + '_' + Tstype[n]  + '_1'
+                    elif 'Tau' in job and isTS:
+                      #  if n < 1:
+                            eststring += '\n ' +job + '_' + Tstype[n] 
+                    elif 'Opt' in job and n < 1 and isTS:
+                        eststring += '\n Grid_' + job + '_' + Tstype[n]
+                        eststring += '\n ' + job + '_' + Tstype[n] + '_0'
+                        if 'nOpt' in job:
+                            eststring += '\n nTauo_' + Tstype[n]
+                        else:
+                            eststring += '\n Tauo_' + Tstype[n]
+                    elif 'Opt' in job and (wellp or wellr) and isTS:
+                        if n == 1 and wellr.lower() != 'find' and wellr.lower() != 'findgeom':
+                            eststring += '\n ' + job + '_WellR'
+                        elif n == 2 and  wellp.lower() != 'find' and wellp.lower() != 'findgeom':
+                            eststring += '\n ' + job + '_WellP'
+                    elif 'Opt' not in job:
+                        eststring += '\n ' + job + '_' + Tstype[n]
                     
         eststring += '\n'
  
     eststring += '\nEnd'
-    eststring += '\n ' + coresh + ',' + coresl + '\n numprocll,numprochl\n'
-    eststring += ' ' + mem + 'MW  ' + mem + 'MW\n gmemll gmemhl\n'
+    eststring += '\n ' + coresl + ',' + coresh + '\n numprocll,numprochl\n'
+    eststring += ' ' + meml + 'MW  ' + memh + 'MW\n gmemll gmemhl\n'
  
     return eststring
 
@@ -544,7 +748,7 @@ def update_interns(n, atoms, measure ,angles):
     if len(atoms) == 0:
         return atoms, measure, angles
     for index,atom in enumerate(atoms):
-        if n > 1:
+        if n == 2:
             atoms[index][0] = atom[0].lower() + str(index+99)
         else:
             atoms[index][0] = atom[0].lower() + str( index+1)
@@ -560,7 +764,7 @@ def update_interns(n, atoms, measure ,angles):
                     atoms[index][5] = atoms[int(atom[5])-1][0]
                     if n > 1:
                         atoms[index][6] = atoms[index][6].upper().replace('D','D10')
-    if n > 1:
+    if n == 2:
         for i in range(len(measure)):
             measure[i][0] = measure[i][0].upper().replace('R','R10')
             measure[i][0] = measure[i][0].upper().replace('A','A10')
@@ -610,31 +814,39 @@ def find_period(zmat,hin):
         period = 1
     return period
 
-def tau_hind_str(atoms, angles, interval, nsteps, mdtau):
+def tau_hind_str(atomslist, angleslist, interval, nsteps, mdtau):
+    anglen = 0
+    if angleslist:
+        anglen = len(angleslist[0])
+        if len(angleslist) > 1:
+            anglen += len(angleslist[1])
+    allangles = []
+    periods   = []
     #TAU
     string  = '\nntau number of sampled coordinates\n'
-    string += str(len(angles)) + '\n'
+    string += str(anglen) + '\n'
     string += ' -->nametau, taumin, taumax\n'
-    for angle in angles:
-        periodicity = find_period(atoms, angle)
-        string += angle + ' 0 ' + interval + '\n'
-
+    for i, angles in enumerate(angleslist):
+        for angle in angles:
+            periodicity = find_period(atomslist[i], angle)
+            string += angle + ' 0 ' + str(interval) + '\n'
+            allangles.append(angle)
+            periods.append(periodicity)
     #1 and 2D HIND
     string += '\nnhind\n'
-    string += str(len(angles)) + '\n'
+    string += str(anglen) + '\n'
     string += ' -->namehind,hindmin,hindmax,nhindsteps,period\n'
-    for hin in angles:
-        periodicity = find_period(atoms, hin)
+    for i, hin in enumerate(allangles):
+        periodicity = periods[i]
         string += hin + ' 0 ' + str(float(interval)/periodicity)  + ' ' + str(int(round(float(nsteps)/periodicity))) + ' ' + str(periodicity)  + '\n'   
-
-    if mdtau and len(angles) > 1:
+    if mdtau and anglen > 0:
         mdtau   = mdtau.strip('D').strip('d')
         string += '\nnhind' + mdtau + 'D\n'
         string += '1\n'
         string += ' -->namehind,hindmin,hindmax,nhindsteps,period\n'
         for i in range(int(mdtau)):
-            periodicity = find_period(atoms, angles[i])
-            string += angles[i] + ' 0 ' + str(float(interval)/periodicity) + ' ' + str(int(round(float(nsteps)/periodicity))) + ' ' + str(periodicity)  + '\n'   
+            periodicity = periods[i]
+            string += allangles[i] + ' 0 ' + str(float(interval)/periodicity) + ' ' + str(int(round(float(nsteps)/periodicity))) + ' ' + str(periodicity)  + '\n'   
     return string
 
 def build_obzmat(smiles):
@@ -701,7 +913,7 @@ def build_optout(xyzstart, XYZ, measure, angles, deletedangles, smiles, smilesfi
             E = io.db_get_sp_prop(smilesfilename, 'ene', None, split[0], split[1], split[2],
                                                          split[0], split[1], split[2])
             if E == None:
-                print('\nNo energy found at ' + io.db_sp_path(split[0], split[1], split[2], 
+                log.warning('No energy found at ' + io.db_sp_path(split[0], split[1], split[2], 
                         None, smiles, split[0], split[1], split[2]) + smilesfilename + '.ene')
         else:
             E = '0'
@@ -720,14 +932,14 @@ def build_optout(xyzstart, XYZ, measure, angles, deletedangles, smiles, smilesfi
  
     return optim
 
-def read_cart(smiles, mult):
+def read_cart(smiles, mult, reactype = ''):
     """
     Finds and Reads an initial XYZ file (and set i,j,k sites for a transition state)
     """
 
     smilesfilename = ob.get_smiles_filename(smiles)
     cartlines = ''
-    ijk = [0, 0, 0]
+    ijk = [0, 0, 0, 0]
     import os
     if io.check_file('../' + smilesfilename + '_m' + str(mult) + '.xyz'):               
       #  cartlines = io.read_file('../' + smilesfilename + '_m' + str(mult) + '.xyz').split('\n\n')[1]
@@ -744,26 +956,64 @@ def read_cart(smiles, mult):
         cartlines = io.read_file('../' + smilesfilename + '.geo')
         cartlines = str(len(cartlines.split('\n'))-1) + ' \n\n' + cartlines
     else:
-        print('ERROR: no .geo or .xyz provided')
-        print('...Using openbabel instead')
+        log.warning('No .geo or .xyz provided\n...Using openbabel instead')
         cartlines = build_obcart(smiles, mult)
-        return cartlines, ijk
+        return cartlines, ijk, False
 
-    #Find if i,j,k site is specified:
     cartlines = cartlines.splitlines()
+    #Reorder cartesian coordinates for zmat if isomerization
+    if reactype.lower() == 'isomerization':
+        toplines = [0,0,0,0]
+        botlines = []
+        for i,line in enumerate(cartlines[2:], start=1):
+            if len(line.split()) > 4:
+                toplines[int(line.split()[0])-1] = line
+            else:
+                botlines.append(line)
+        cartlines = cartlines[:2]
+        cartlines.extend(toplines[::-1])
+        cartlines.extend(botlines)
+        #order  = [1, 2, 3, 4]
+        #k = 0
+        #while (order != sorted(order, reverse = True) and k < 100):
+        #    j = 5
+        #    m = 0
+        #    k += 1
+        #    newcart = cartlines[:2]
+        #    for i,line in enumerate(cartlines[2:], start=1):
+        #        if len(line.split()) > 4:
+        #            order[int(line.split()[0])-1] = i
+        #            if j < i and m < line.split()[0]:
+        #                index = len(newcart)-1
+        #                newcart.insert(index, line)
+        #                j = i - 1 
+        #            else:
+        #                newcart.append(line) 
+        #                j = i
+        #            m = line.split()[0]
+        #        else:
+        #             newcart.append(line) 
+        #    cartlines = newcart
+    #Find if i,j,k site is specified:
     for i,line in enumerate(cartlines[1:], start=1):
         if len(line.split()) > 4:
             cartlines[i] = '   '.join(line.split()[1:])
+            if reactype.lower() == 'isomerization':
+                line = line.split()
+                line[0] = line[0].replace('1','5').replace('3','1').replace('4','3')
+                line = '  '.join(line)
             if line.split()[0] == '1':
                 ijk[1] = str(i)
             elif line.split()[0] == '2':
                 ijk[0] = str(i)
             elif line.split()[0] == '3':
                 ijk[2] = str(i)
+            elif line.split()[0] == '5':
+                ijk[3] = str(i)
             elif line.split()[0] == '4':
                 temp = cartlines[i]
                 del cartlines[i]
                 cartlines.insert(2,temp)
     cartlines = '\n'.join(cartlines)
-    return cartlines, ijk 
+    return cartlines, ijk, True
 

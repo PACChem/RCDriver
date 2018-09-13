@@ -1,5 +1,7 @@
 #!/home/keceli/anaconda2/bin/python
 import os
+import logging
+log = logging.getLogger(__name__)
 
 def extract_mess(filename):
     """
@@ -9,7 +11,7 @@ def extract_mess(filename):
     if io.check_file(filename):
         lines = io.read_file(filename)
     if lines == '':
-        print('failed -- ' + filename + ' is empty, check estoktp.log')
+        log.error(filename + ' is empty, check estoktp.log')
     return lines
 
 
@@ -43,16 +45,16 @@ def get_fr(s, natom, typ, anharm, anovrwrt, anfreqs, anxmat, meths, node, n=-1, 
                 else:
                     anlevel = ''
         os.chdir('..')                          
-        anfr,fr1, anx,fr2,fr3 = get_anharm(typ, str(n+1), natom, node, anlevel, anovrwrt, s, optlevel.split('/'))  #(xmat with projected out scanned torsional modes)
+        anfr,fr1, anx,fr2,fr3,_ = get_anharm(typ, str(n+1), natom, node, anlevel, anovrwrt, s, optlevel.split('/'))  #(xmat with projected out scanned torsional modes)
         fr =  fr1 +  fr2 + fr3
         anfreqs.append(anfr)
         anxmat.append(anx)
         os.chdir('me_files')
+    zpve = io.read_file(name + '_zpe.me')
     if store:
-        zpve = io.read_file(name + '_zpe.me')
         io.db_store_sp_prop(zpve, mol, 'zpve', prog = prog, optprog = optprog, method= method, optmethod=optmethod, basis=basis, optbasis=optbasis)  
     fr = fr.rstrip('End') + '\n'
-    return fr, anfreqs, anxmat
+    return fr, anfreqs, anxmat, zpve
 
 def read_gehr(s, typ, n=-1):
     
@@ -79,7 +81,7 @@ def read_gehr(s, typ, n=-1):
     hr += '\nEnd'
     return ge, hr
 
-def build_pfinput(args, msg = ''):
+def build_pfinput(args, d):
     """
     Compiles together the mess data extracted from EStokTP computations
     to form an mess input file
@@ -106,79 +108,107 @@ def build_pfinput(args, msg = ''):
     speclist = []  #list of reac1, reac2 etc..
 
     if not os.path.exists('me_files'):
-        print('failed -- me_files not found, check estoktp.log')
-        return
+        log.error('me_files not found, check estoktp.log')
+        return [],[],[],[]
 
-    tf = " Temperature(step[K],size)\t100.\t30\n RelativeTemperatureIncrement\t\t 0.001\n"
-    zp = "   ZeroPointEnergy[1/cm] 0\n   InterpolationEnergyMax[kcal/mol] 500\n"
     for n,reac in enumerate(reacs):
        
         if reac == '':
             break
-        msg += 'Task: Extracting MESS data for reac{:g}...'.format(n+1)
-        msg = log_msg(msg)
+        msg = 'Extracting MESS data for reac{:g}...'.format(n+1)
+        log.debug(msg)
 
         try:
             os.chdir('me_files')
-            natom = ob.get_natom(reac)
+            mol    = ob.get_mol(reac)
+            ob.get_xyz(mol)
+            natom  = ob.get_natom(reac)
+            mult   = ob.get_mult(reac)
+            params = {}
+            params[ 'natom']  = natom
+            params[  'mult']  = mult
+            params['qlabel']  = 'TorsScan-Made pf input'
             ge, hr = read_gehr(reac, 'reac',  n)
             if len(symnums) > n:
                 symnum = symnums[n]
             else:
                 symnum = 1
-            ge = ge.replace('SymmetryFactor    1.0000000000000','SymmetryFactor     {:.2f}'.format(float(symnum)))
-            fr, anfreqs, anxmat = get_fr(reac, natom, 'reac', anharm, anovrwrt, anfreqs, anxmat, meths, node, n, args.store)
+            #ge = ge.replace('SymmetryFactor    1.0000000000000','SymmetryFactor     {:.2f}'.format(float(symnum)))
+            fr, anfreqs, anxmat, zpve = get_fr(reac, natom, 'reac', anharm, anovrwrt, anfreqs, anxmat, meths, node, n, args.store)
+            d[reac][   'sym'] = symnum
+            d[reac][  'zpve'] = zpve
+            d[reac]['anxmat'] = anxmat
+            if len(anfreqs) > n:
+                d[reac]['afreqs'] = anfreqs[n]
+            if len(hr) > 5:
+                d[reac]['hindered potential'] = hr.rstrip('End')
+            params['results'] = d[reac]
             os.chdir('..')                              
-            msg += 'completed'
-            msg  = log_msg(msg)
-            pf = tf + ge + zp +  fr + hr
+            msg = 'Completed'
+            log.info(msg)
+            pf = tc.get_messpf_input(mol, params)
             io.write_file(pf + '\n',reac.split('_m')[0].strip() + '.pf')
-            msg += 'Task: Building MESS input file...'
-            msg += 'completed'
-            msg  = log_msg(msg)
+            msg = 'Building MESS input file...'
+            log.debug(msg)
+            msg = 'Completed'
+            log.info(msg)
             species.append(reac)
             speclist.append('reac' + str(n+1))
         except IOError:
-            msg += 'me_files are missing, check me_file/*, estoktp.log, and output/estoktp.out' 
-            msg  = log_msg(msg)
+            msg = 'me_files are missing, check me_file/*, estoktp.log, and output/estoktp.out' 
+            log.error(msg)
             os.chdir('..')                         
 
     for n, prod in enumerate(prods):
 
         if prod == '':
             break
-        msg += 'Task: Extracting MESS data for reac{:g}...'.format(n+1)
-        msg = log_msg(msg)
+        msg = 'Extracting MESS data for reac{:g}...'.format(n+1)
+        log.info(msg)
 
         try:    
             os.chdir('me_files')
-            natom = ob.get_natom(prod)
+            mol    = ob.get_mol(prod)
+            ob.get_xyz(mol)
+            natom  = ob.get_natom(prod)
+            mult   = ob.get_mult( prod)
+            params = {}
+            params[ 'natom']  = natom
+            params[  'mult']  = mult
+            params['qlabel']  = 'TorsScan-Made pf input'
             ge, hr = read_gehr(prod, 'prod', n)
             if len(symnums) > n+len(reacs):
                 symnum = symnums[n+len(reacs)]
             else:
                 symnum = 1
             ge = ge.replace('SymmetryFactor    1.0000000000000','SymmetryFactor        {:.2f}'.format(float(symnum)))
-            fr, anfreqs, anxmat = get_fr(prod, natom, 'prod', anharm, anovrwrt, anfreqs, anxmat, meths, node, n, args.store)
+            fr, anfreqs, anxmat, zpve = get_fr(prod, natom, 'prod', anharm, anovrwrt, anfreqs, anxmat, meths, node, n, args.store)
+            d[prod][   'sym'] = symnum
+            d[prod][  'zpve'] = zpve
+            d[prod]['anxmat'] = anxmat
+            d[prod]['afreqs'] = anfreqs[n+len(reacs)]
+            if len(hr) > 5:
+                d[prod]['hindered potential'] = hr
+            params['results'] = d[prod]
             os.chdir('..')                        
-            msg += 'completed'
-            msg  = log_msg(msg)
-            pf = tf + ge + zp + fr + hr
+            msg = 'Completed'
+            log.info(msg)
+            pf = tc.get_messpf_input(mol, params)
             io.write_file(pf+'\n', prod.split('_m')[0].strip() + '.pf')
-            msg += 'Task: Building MESS input file...'
-            msg += 'completed'
-            msg  = log_msg(msg)
+            msg = 'Building MESS input file...'
+            log.debug(msg)
+            msg = 'Completed'
+            log.info(msg)
             species.append(prod)
             speclist.append('prod' + str(n+1))
         except IOError:
-            msg += 'me_files are missing, check me_file/*, estoktp.log, and output/estoktp.out' 
-            msg  = log_msg(msg)
+            msg  = 'me_files are missing, check me_file/*, estoktp.log, and output/estoktp.out' 
+            log.error(msg)
             os.chdir('..')                         
 
     if args.nTS > 0:
         ts = reacs[0] + '_' + reac[1]
-        msg += 'Task: Extracting MESS data for TS...'
-        msg  =  log_msg(msg)
+        log.debug( 'Extracting MESS data for TS...')
 
         try:    
             os.chdir('me_files')
@@ -186,28 +216,26 @@ def build_pfinput(args, msg = ''):
             fr = extract_mess('ts_fr.me')                 #Copy EStokTP projfrequencies
             fr = fr.split('End')[0] + 'End  '
             os.chdir('..')                        
-            msg += 'completed'
-            msg  = log_msg(msg)
+            msg = 'Completed'
+            log.info(msg)
             pf = tf + ge  + zp + fr + hr
             io.write_file(pf+'\n', ts.strip() + '.pf')
-            msg += 'Task: Building MESS input file...'
-            msg += 'completed'
-            msg  = log_msg(msg)
+            log.debug('Building MESS input file...')
+            log.info('Completed')
             species.append(ts)
             speclist.append('ts')
         except IOError:
-            msg += 'me_files are missing, check me_file/*, estoktp.log, and output/estoktp.out' 
-            msg  = log_msg(msg)
-            os.chdir('..')                         
+            log.warning('me_files are missing, check me_file/*, estoktp.log, and output/estoktp.out' )
+            os.chdir('..')                        
     return species, speclist, anfreqs, anxmat
 
-def run(args, paths):
+def run(args, paths, d={}):
     """
     Runs heatform, partition_function, thermp, pac99, and write chemkin file
     """
     import sys
     sys.path.insert(0, paths['qtc'])
-    global pa, io, ob
+    global pa, io, ob, tc
     import patools as pa
     import iotools as io
     import tctools as tc
@@ -227,7 +255,7 @@ def run(args, paths):
     enlevel  = args.enlevel
     hlen     = args.hlen
     hfbases = []
-    speciess,speclist, anfreqs, anxmat = build_pfinput(args)
+    speciess, speclist, anfreqs, anxmat = build_pfinput(args,d)
     dH0   = []
     dH298 = []
     anharmbool = False
@@ -260,30 +288,34 @@ def run(args, paths):
                     printzpve = '{}- ZPVE: {:5g} pulled from: {}'.format(species, zpve, 'me_files/'+speclist[i] + '_zpe.me')
                 if zpve:
                     energy = energy + zpve
-                print printE + '\n' +  printzpve
+                log.info( printE + '\n' +  printzpve)
                 deltaH, hfbasis = hf.main(species,logfile,E=energy,basis=hfbasis,anharm=anharmbool,enlevel=enlevel)
                 hfbases.append(hfbasis)
             else:
                 deltaH = 0.00
         dH0.append(deltaH)
         if not speclist[i] == 'ts':
-            print('Task: Running mess')
+            log.debug('Running mess')
             tc.run_pf('/home/ygeorgi/build/crossrate/partition_function', species + '.pf')
-            print('Generating thermp input.\n')
+            log.info('Completed')
+            log.debug('Generating thermp input.\n')
+            log.info('Completed')
             
             stoich = ob.get_formula(ob.get_mol(species))
             inp = tc.get_thermp_input(stoich,deltaH)
-            print('Running thermp.\n')
+            log.debug('Running thermp.\n')
             if io.check_file(species+'.pf.dat'):
                 os.rename(species + '.pf.dat','pf.dat')
             else:
-                print ('ERROR: no pf.dat produces, try soft adding gcc-5.3 and intel-16.0.0 and use Restart at: 5!')
+                log.error('No pf.dat produced, try soft adding gcc-5.3 and intel-16.0.0 and use Restart at: 5!')
+                return [],[],[],[],[]
             tc.run_thermp(inp,'thermp.dat','pf.dat','/home/elliott/Packages/therm/thermp.exe')
             lines = io.read_file('thermp.out')
+            log.info('Completed')
             deltaH298 = ' h298 final\s*([\d,\-,\.]*)'
             deltaH298 = re.findall(deltaH298,lines)[-1]
             dH298.append(deltaH298)
-            print ('Running pac99.\n')
+            log.debug('Running pac99.\n')
             shutil.copyfile('/home/elliott/Packages/therm/new.groups','./new.groups')
             shutil.copyfile(stoich + '.i97',species + '.i97')
             tc.run_pac99(species,'/home/elliott/Packages/therm/pac99.x')
@@ -291,13 +323,16 @@ def run(args, paths):
             if io.check_file(c97file):
                 c97text  = io.read_file(c97file)
                 las, has, msg = tc.get_coefficients(c97text)
+                log.info('Completed')
+            else:
+                 log.error('No {} produced'.format(c97file))
             chemkinfile = stoich + '.ckin'
-            print('Writing chemkin file {0}.\n'.format(chemkinfile))
+            log.debug('Writing chemkin file {0}.\n'.format(chemkinfile))
             method = meths[-1][2]
             chemininput = tc.write_chemkin_file(species, method, deltaH, float(deltaH298), stoich, 0, las, has, chemkinfile)
 
         
-        print('completed')
+        log.info('Completed')
     return dH0, dH298, hfbases, anfreqs, anxmat
 
 
@@ -329,7 +364,3 @@ def get_anharm(rorp,i,natom,node,anlevel,anovrwrt,species, optlevel):
 
     return anharm.main(opts)
 
-
-def log_msg(msg):
-    print(msg)
-    return ''

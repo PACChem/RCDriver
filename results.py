@@ -1,6 +1,8 @@
 #!/usr/bin/python
 
 import os
+import logging
+log = logging.getLogger(__name__)
 
 class RESULTS:
     def __init__(self, args, paths):
@@ -57,30 +59,30 @@ class RESULTS:
                     if 'hlevel' in meth:
                         self.enlevel = '{}/{}'.format(meth[1],meth[2])
             else:
-               msg += 'No energy found for reac{:g}'.format(i+1)
+               msg += 'No energy found for reac{:g}\n'.format(i+1)
 
         for i in range(len(self.args.prods)):
             if io.check_file('me_files/prod'+str(i+1) + '_en.me'):
                 hlen.append(float(io.read_file('me_files/prod'+str(i+1) + '_en.me')))
             else:
-               msg += 'No energy found for prod{:g}'.format(i+1)
+               msg += 'No energy found for prod{:g}\n'.format(i+1)
 
-        if self.args.nTS > 0:
+        if self.args.reactype:
             if io.check_file('me_files/ts_en.me'):
                 hlen.append(float(io.read_file('me_files/ts_en.me')))
             else:
-                msg += 'No energy found for ts'
-            if self.args.nTS > 1:
+                msg += 'No energy found for ts\n'
+            if self.args.wellr and self.args.wellr != 'false':
                 if io.check_file('me_files/wellr_en.me'):
                     hlen.append(float(io.read_file('me_files/wellr_en.me')))
                 else:
-                   msg += 'No energy found for wellr'
-                if self.args.nTS > 2:
-                    if io.check_file('me_files/wellp_en.me'):
-                        hlen.append(float(io.read_file('me_files/wellp_en.me')))
-                    else:
-                       msg += 'No energy found for wellp'
-        print msg
+                   msg += 'No energy found for wellr\n'
+            if self.args.wellp and self.args.wellp != 'false':
+                if io.check_file('me_files/wellp_en.me'):
+                    hlen.append(float(io.read_file('me_files/wellp_en.me')))
+                else:
+                   msg += 'No energy found for wellp\n'
+        log.warning(msg)
         self.hlen = hlen
         return hlen
  
@@ -88,35 +90,51 @@ class RESULTS:
         """
         Parses, prints, and stores the quantum chemistry and thermochemistry output
         """
-        printstr = '=====================\n          '+species+'\n=====================\n'
-
+        printstr = '\n=====================\n          '+species+'\n=====================\n'
+        d = {}
         optprog, optmethod, optbasis = self.optlevel.split('/')
         if self.enlevel == 'optlevel':
             prog   =  pa.get_prog(lines) 
-            method =  pa.method(lines).lower().lstrip('r')
+            method =  pa.method(lines)
+            if method:
+                method  = method.lower().lstrip('r')
             basis  =  pa.basisset(lines).lower() 
-            energy = str(pa.energy(lines)[1]) 
+            energy = pa.energy(lines)[1]
         elif len(self.enlevel.split('/')) > 2 :
             prog, method, basis = self.enlevel.split('/') 
             if len(self.hlen) >= n:
-                energy = str(self.hlen[n-1])
+                energy = self.hlen[n-1]
             else:
                 energy = 'N/A'
-        zmat   =  pa.zmat(lines)   
+        zmat=  pa.zmat(lines)   
         geo =  pa.geo(lines)
         xyz =  pa.xyz(lines)
         rotcon = pa.rotconsts(lines)
+        d[  'prog'] = prog
+        d['method'] = method
+        d[ 'basis'] = basis
+        d['energy'] = energy
+        d[  'zmat'] = zmat
+        d[   'geo'] = geo
+        d[   'xyz'] = xyz
+        d['rotconsts'] = rotcon
         if rotcon:
             rotcon = ', '.join(rotcon)
         freqs  =  pa.freqs(lines)
         if freqs:
+            d[ 'freqs'] = freqs
             freqs   = ', '.join(freq for freq in freqs[::-1])
     
         if lines2 != '':
-            pfreqs  = pa.EStokTP_freqs(lines2)
+            try:
+                pfreqs  = pa.EStokTP_freqs(lines2)
+            except:
+                pfreqs  = []
+            d['pfreqs'] = pfreqs
             pfreqs  = ', '.join('{:>9}'.format(freq) for freq in pfreqs)
         else: 
             pfreqs = []
+
     
         printstr += 'Optimized at : {}\n'.format(self.optlevel)
         printstr += 'Energy: ' + str(energy) + ' A.U.\n'
@@ -142,10 +160,10 @@ class RESULTS:
                 io.db_store_opt_prop(xyz,   species, 'xyz', database, optprog, optmethod, optbasis)
             if lines2:                                              
                 io.db_store_opt_prop(pfreqs, species,'phrm', database, optprog, optmethod, optbasis)
-        return printstr
+        return printstr, d 
 
-    def parse_thermo(self, n, species):
-        printstr = ''
+    def parse_thermo(self, n, species, d):
+        printstr = '\n=====================\n          '+species+'\n=====================\n'
         optprog, optmethod, optbasis = self.optlevel.split('/')
         if self.enlevel == 'optlevel':
             prog   =  optprog
@@ -153,15 +171,21 @@ class RESULTS:
             basis  =  optbasis
         else:
             prog, method, basis = self.enlevel.split('/') 
-    
+        d[  'prog'] = prog
+        d['method'] = method
+        d[ 'basis'] = basis
         if self.args.anharm != 'false':
             anpfr     = ', '.join('%4.4f' % freq for freq in self.anfreqs[n-1])
             pxmat     =('\n\t'.join(['\t'.join(['%3.3f'%item for item in row]) 
                         for row in self.anxmat[n-1]]))
             printstr += '\nAnharmonic Frequencies  (cm-1):\t' + anpfr
             printstr += '\nX matrix:\n\t' + pxmat #+   anxmat[i-1]
+            d['panharm'] = anpfr
+            d[  'pxmat'] = pxmat
         printstr += '\nHeat of formation(  0K): {0:.2f} kcal / {1:.2f}  kJ\n'.format(self.dH0[n-1],   self.dH0[n-1]/.00038088/ 627.503)
         printstr +=   'Heat of formation(298K): {0:.2f} kcal / {1:.2f}  kJ\n'.format(float(self.dH298[n-1]), float(self.dH298[n-1])/.00038088/ 627.503)
+        d[   'dH0K'] = self.dH0
+        d[ 'dH298K'] = self.dH298
         if self.args.store:
             database = self.args.database 
             if self.args.anharm != 'false':
@@ -172,7 +196,7 @@ class RESULTS:
                 io.db_store_sp_prop('Energy (kcal)\tBasis\n----------------------------------\n',species,'hf298k',database, prog,method,basis, optprog, optmethod, optbasis)
             if len(self.hfbases) >= n+1:
                 io.db_append_sp_prop(str(self.dH298[n-1]) + '\t' + ', '.join(self.hfbases[n]) + '\n', species, 'hf298k',database, prog,method,basis, optprog, optmethod, optbasis)
-        return printstr
+        return printstr, d
  
 #    def ts_parse(self, lines):
 #        """
@@ -192,8 +216,8 @@ class RESULTS:
 
     def get_results(self):
 
-       printstr = printheader()
-
+       msg = printheader()
+       d = {}
        for i,reac in enumerate(self.args.reacs, start=1):
            lines  = ''
            if io.check_file('geoms/reac' + str(i) + '_l1.log'):
@@ -201,8 +225,11 @@ class RESULTS:
            lines2  = ''
            if io.check_file('me_files/reac' +  str(i) + '_fr.me'):
                lines2  = io.read_file('me_files/reac' +  str(i) + '_fr.me')
-           printstr += self.parse(i, reac, lines, lines2)
-
+           if lines:
+               printstr, d[reac] = self.parse(i, reac, lines, lines2)
+               msg += printstr
+           else:
+               log.warning('No geom for ' + reac + ' in geoms/reac' + str(i) + '_l1.log')
        for j,prod in enumerate(self.args.prods, start=1):
            lines  = ''
            if io.check_file('geoms/prod' + str(i) + '_l1.log'):
@@ -210,9 +237,11 @@ class RESULTS:
            lines2 = ''
            if io.check_file('me_files/reac' +  str(j) + '_fr.me'):
                lines2  = io.read_file('me_files/prod' +  str(j) + '_fr.me')
-           printstr += self.parse(i+j-1, prod, lines, lines2)
-           if self.thermo:
-               printstr += self.parse_thermo(i+j-1, prod)
+           if lines:
+               printstr, d[prod] = self.parse(i+j-1, prod, lines, lines2)
+               msg += printstr
+           else:
+               log.warning('No geom for ' + prod + '  in geoms/prod' + str(j) + '_l1.log')
 
        #if args.nTS > 0:
        #    lines = io.read_file('geoms/tsgta_l1.log')
@@ -223,19 +252,28 @@ class RESULTS:
        #        if args.nTS > 2:
        #            lines = io.read_file('geoms/wellp_l1.log')
        #            printstr += ts_parse(2,lines)
-       print printstr
-       return
+       log.info(msg)
+       self.d = d
+       return 
 
     def get_thermo_results(self):
 
-       printstr = print_thermoheader()
-
+       msg = print_thermoheader()
+       d = self.d
        for i,reac in enumerate(self.args.reacs, start=1):
-           if self.thermo:
-               printstr += self.parse_thermo(i, reac)
+           if reac in d:
+               printstr, d[reac] = self.parse_thermo(i, reac, d[reac])
+               msg += printstr
        for j,prod in enumerate(self.args.prods, start=1):
-               printstr += self.parse_thermo(i+j-1, prod)
-       print printstr
+           if prod in d:
+               if self.args.reactype:
+                   printstr, d[prod] = self.parse_thermo(i+j, prod, d[prod])
+                   msg += printstr
+               else:
+                   printstr, d[prod] = self.parse_thermo(i+j-1, prod, d[prod])
+                   msg += printstr
+       log.info(msg)
+       self.d = d
        return
 
 def printheader():
