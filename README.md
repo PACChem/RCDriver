@@ -21,7 +21,7 @@ The thermochemistry computations in TorsScan uses heatform, anharm, and tctools 
 
 ## (3) INPUT / OUTPUT
 
-The main executable is torsional_scan.py.  It will need an inputfile specified with the -i flag (an example is located at /home/elliott/Packages/TorsScan/input.dat).  If no inputfile is specified with the (e.g., the command is not  torsional_scan.py myinputfile.txt)  the code will automatically look for a file named input.dat. The input file separates keywords from their input values with a colon.  The keywords are case sensitive but the values are not.  Lines can be commented out with a \#.  The output will print to termminal unless an output file is specified with a -o flag.
+The main executable is torsional_scan.py.  It will need an inputfile specified with the -i flag (an example is located at /home/elliott/Packages/TorsScan/input.dat).  If no inputfile is specified with the (e.g., the command is not  torsional_scan.py myinputfile.txt)  the code will automatically look for a file named input.dat. The input file separates keywords from their input values with a colon.  The keywords are case sensitive but the values are not.  Lines can be commented out with a \#.  The output will print to terminal unless an output file is specified with a -o flag.
 
 
 ### SPECIES INPUT

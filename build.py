@@ -832,6 +832,7 @@ def tau_hind_str(atomslist, angleslist, interval, nsteps, mdtau):
             string += angle + ' 0 ' + str(interval) + '\n'
             allangles.append(angle)
             periods.append(periodicity)
+
     #1 and 2D HIND
     string += '\nnhind\n'
     string += str(anglen) + '\n'
