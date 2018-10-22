@@ -1077,7 +1077,6 @@ def read_cart(smiles, mult, reactype = ''):
         smilesfilename = ob.get_smiles_filename(smiles)
     cartlines = ''
     ijk = [0, 0, 0, 0]
-    import os
     if reactype in ['wellp', 'wellr', 'ts']:
         if io.check_file('../' + smilesfilename + '.xyz'):               
             cartlines = io.read_file('../' + reactype + '.xyz')

@@ -1,15 +1,17 @@
 import os
 import sys
 import numpy as np
-import rmg_reader as rg
+import argparse
 import logging
+
 import config  
+import rmg_reader as rg
 import estoktp as es
+
 from qtc import iotools as io
 from qtc import obtools as ob
 from qtc import tctools as tc
 log   = logging.getLogger(__name__)
-import argparse
 
 def random_cute_animal():
     import random 
@@ -415,7 +417,7 @@ if __name__ == "__main__":
     #####  Get arguments  ##########
     ################################
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
-                            description="TorsScan")
+                            description="RCDriver")
     parser.add_argument('-i','--inputfile',   type=str,   default='input.dat')
     parser.add_argument('-o','--outputfile',   type=str,   default='')
     parser.add_argument('-c','--configfile',   type=str,   default=configfile)

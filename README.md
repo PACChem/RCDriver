@@ -1,27 +1,27 @@
-# TorsScan
+# RCDriver
 
 Sarah N. Elliott, Murat Keceli, and Stephen J. Klippenstein
 
-TorsScan is a set of python modules that when given a short input file (that requests a SMILES molecule name and levels of theory) will perform hindered rotor scans and transition state searches.  Specifically it sets up and performs EStokTP computations and subsequently parses the resulting output files to compute 0 K heats of formation and updated anharmonic constants.  Given the option, TorsScan will use those computations to generate mess input and can run the mess partition 
+RCDriver is a set of python modules that when given a short input file (that requests a SMILES molecule name and levels of theory) will perform hindered rotor scans and transition state searches.  Specifically it sets up and performs EStokTP computations and subsequently parses the resulting output files to compute 0 K heats of formation and updated anharmonic constants.  Given the option, RCDriver will use those computations to generate mess input and can run the mess partition 
 function, thermp, pac99 executables to generate 298 K heats of formation, heat capacities, and NASA polynomials. 
 
 
 
 ## (1) GETTING TORSSCAN
 
-Users can clone TorsScan from https://github.com/snelliott/TorsScan or simply use its location at  /home/elliott/Packages/TorsScan on Blues.  
+Users can clone RCDriver from https://github.com/snelliott/RCDriver or simply use its location at  /home/elliott/Packages/RCDriver on Blues.  
 
 
 ## (2) DEPENDENCIES
 
-TorsScan relies on EStokTP developed by Carlo Cavallotti, Matteo Pelucchi, and Stephen Klippenstein. TorsScan uses the iotools (input/output tools), obtools (openbabel tools), and patools (parsing tools), built by Murat Keceli and Sarah Elliott that can be cloned from  https://github.com/keceli/QTC or https://github.com/PACChem/QTC. Obtools, in turn, needs OpenBabel with pybel python bindings.  You will need to either install that by following these instructions https://pypi.python.org/pypi/openbabel.
+RCDriver relies on EStokTP developed by Carlo Cavallotti, Matteo Pelucchi, and Stephen Klippenstein. RCDriver uses the iotools (input/output tools), obtools (openbabel tools), and patools (parsing tools), built by Murat Keceli and Sarah Elliott that can be cloned from  https://github.com/keceli/QTC or https://github.com/PACChem/QTC. Obtools, in turn, needs OpenBabel with pybel python bindings.  You will need to either install that by following these instructions https://pypi.python.org/pypi/openbabel.
 The zmat builder uses x2z by Yuri Georgievski.  This can be cloned from https://github.com/PACChem/x2z. 
-The thermochemistry computations in TorsScan uses heatform, anharm, and tctools also on the QTC github, pac99 by Bonnie Mcbride, thermp by Stephen Klippenstein, and mess by Yuri Georgievski. The locations of these files should be in the user's path or specified in a configfile (run torsscan with -c <configfile>)
+The thermochemistry computations in RCDriver uses heatform, anharm, and tctools also on the QTC github, pac99 by Bonnie Mcbride, thermp by Stephen Klippenstein, and mess by Yuri Georgievski. The locations of these files should be in the user's path or specified in a configfile (run rcdriver with -c <configfile>)
 
 
 ## (3) INPUT / OUTPUT
 
-The main executable is torsional_scan.py.  It will need an inputfile specified with the -i flag (an example is located at /home/elliott/Packages/TorsScan/input.dat).  If no inputfile is specified with the (e.g., the command is not  torsional_scan.py myinputfile.txt)  the code will automatically look for a file named input.dat. The input file separates keywords from their input values with a colon.  The keywords are case sensitive but the values are not.  Lines can be commented out with a \#.  The output will print to terminal unless an output file is specified with a -o flag.
+The main executable is rc_driver.py.  It will need an inputfile specified with the -i flag (an example is located at /home/elliott/Packages/RCDriver/input.dat).  If no inputfile is specified with the (e.g., the command is not  rc_driver.py myinputfile.txt)  the code will automatically look for a file named input.dat. The input file separates keywords from their input values with a colon.  The keywords are case sensitive but the values are not.  Lines can be commented out with a \#.  The output will print to terminal unless an output file is specified with a -o flag.
 
 
 ### SPECIES INPUT
@@ -44,7 +44,7 @@ List up to two, comma-separated SMILES strings
 
 **Reaction type:**
 
-Specify the type of reaction.  Currently TorsScan will perform Abstraction, Addition, and Isomerization reactions.
+Specify the type of reaction.  Currently RCDriver will perform Abstraction, Addition, and Isomerization reactions.
 Default is blank, which means that the job is a well.
 
 *Reaction type: Abstraction*
@@ -62,14 +62,14 @@ Specify the number of transition states. 0 and 1 are self explanatory, 2 and 3 w
 
 **Use input xyz:**
 
-A user can choose to use an xyz or geo file instead of having OpenBabel generate it from the SMILES string by setting this keyword to True, cartesianfile.xyz, or logfilename.log. Using true will mean that the xyz or geo are in the working directory and are named <SMILES>.xyz or <SMILES>.geo (geo files do not have the extra two lines at the top with the first having the number of atoms and the second being blank/comment). Using <logfilename>.log will make TorsScan parse out the coordinates from a Molpro or Gaussian job (Note that using TorsScan for more than one species will break this method until I update it to use <SMILES>.log instead of <logfilename>.log). Default is false.
+A user can choose to use an xyz or geo file instead of having OpenBabel generate it from the SMILES string by setting this keyword to True, cartesianfile.xyz, or logfilename.log. Using true will mean that the xyz or geo are in the working directory and are named <SMILES>.xyz or <SMILES>.geo (geo files do not have the extra two lines at the top with the first having the number of atoms and the second being blank/comment). Using <logfilename>.log will make RCDriver parse out the coordinates from a Molpro or Gaussian job (Note that using RCDriver for more than one species will break this method until I update it to use <SMILES>.log instead of <logfilename>.log). Default is false.
 
 *Use input xyz: True*
 
 
 **Use xyz as:**
 
-EstokTP optimizes geometries in multiple of its modules.  This keyword tells TorsScan which of these modules the geometry from the previous keyword should replace.  Using start will use the geometry instead of generating an OpenBabel geometry and start EstokTP from the beginning (i.e., from level0 aka Opt_reac1).  Using 0 or level0 will use the geometry instead of optimizing at level0 so EstokTP will begin at level1 (aka Opt_reac1_1).  Finally 1 or level1 will use the geometry as the level1 optimization and skip straight to the hindered rotor scans BUT this is not quite working yet because it needs to also get force constant information in the output directory. Default is start.
+EstokTP optimizes geometries in multiple of its modules.  This keyword tells RCDriver which of these modules the geometry from the previous keyword should replace.  Using start will use the geometry instead of generating an OpenBabel geometry and start EstokTP from the beginning (i.e., from level0 aka Opt_reac1).  Using 0 or level0 will use the geometry instead of optimizing at level0 so EstokTP will begin at level1 (aka Opt_reac1_1).  Finally 1 or level1 will use the geometry as the level1 optimization and skip straight to the hindered rotor scans BUT this is not quite working yet because it needs to also get force constant information in the output directory. Default is start.
 
 *Use xyz as: 0*
 
@@ -78,7 +78,7 @@ EstokTP optimizes geometries in multiple of its modules.  This keyword tells Tor
 
 **Run on node:**
 
-This lets the user specify which blues node to run EstokTP on.  If the input is d or debug, TorsScan will build all the necessary EstokTP files but not run them.  Specifying b###  will submit the job to that blues node.  A comma seperated list of b###,b###,b### will submit the monte carlo level0 job to multiple nodes, and the remaining modules will be sent to teh first in the list. Using 0 will run EStokTP on your current node (on the login node if you haven’t sshed onto a blues node). 
+This lets the user specify which blues node to run EstokTP on.  If the input is d or debug, RCDriver will build all the necessary EstokTP files but not run them.  Specifying b###  will submit the job to that blues node.  A comma seperated list of b###,b###,b### will submit the monte carlo level0 job to multiple nodes, and the remaining modules will be sent to teh first in the list. Using 0 will run EStokTP on your current node (on the login node if you haven’t sshed onto a blues node). 
 Default is 0.
 
 *Run on node: b431*
@@ -169,14 +169,14 @@ True or false to run heat of formation code and if me_files are produced during 
 
 **Anharmonic:**
 
-Here we tell TorsScan if it should be using anharmonic corrected frequencies and anharmonic constants in the mess input file for partition function.  There are several options to tell it how to get the anharmonic constants.  Saying 0 will run an anharmonic frequency calculation at the same level of theory as the level0 optimization and saying 1 will do the same but for level1 optimization. Specifying prog/method/basis will have it run it at a specific program, method, and basis set.  All of these options are only set up for Gaussian computations at the moment. Inputing <SMILES>anharm.log will tell TorsScan that you’ve seperately run an anharmonic computation, placed it in the working directory, and named it <SMILES>anharm.log, and want TorsScan to parse the anharmonic constants from that file. The final way is to write optprog/optmethod/optbasis/prog/method/basis which will make it search in the PACC for anharmonic constants calculated at prog/method/basis for a geometry optimized at optprog/optmethod/optbasis.  Default is false.
+Here we tell RCDriver if it should be using anharmonic corrected frequencies and anharmonic constants in the mess input file for partition function.  There are several options to tell it how to get the anharmonic constants.  Saying 0 will run an anharmonic frequency calculation at the same level of theory as the level0 optimization and saying 1 will do the same but for level1 optimization. Specifying prog/method/basis will have it run it at a specific program, method, and basis set.  All of these options are only set up for Gaussian computations at the moment. Inputing <SMILES>anharm.log will tell RCDriver that you’ve seperately run an anharmonic computation, placed it in the working directory, and named it <SMILES>anharm.log, and want RCDriver to parse the anharmonic constants from that file. The final way is to write optprog/optmethod/optbasis/prog/method/basis which will make it search in the PACC for anharmonic constants calculated at prog/method/basis for a geometry optimized at optprog/optmethod/optbasis.  Default is false.
 
 *Anharmonic: COanharm.log*
 
 
 **Overwrite anharmonic:**
 
-If TorsScan already sees a <SMILES>anharm.log file it will just use that instead of computing on for itself.  If that’s not okay with you, input true to overwrite. Default is False.
+If RCDriver already sees a <SMILES>anharm.log file it will just use that instead of computing on for itself.  If that’s not okay with you, input true to overwrite. Default is False.
 
 *Overwrite anharmonic: true*
 
@@ -193,15 +193,15 @@ This will be used in the heat of formation code.   The default is auto which wil
 
 **Restart at:**
 
-Did something break in your computation and you don’t want to run it all all over again? No worries!  You can tell it to restart at almost any point. 0 – beginning (the default), 1 – if level0 optimization has successfully completed and you want to begin with level1, 2 – if level1 is completed and you want to start at the next module, 3 – The 1D hindered rotor scans are completed, 4 - the MD hindered rotor scans are completed (i.e., just symm, high level, irc, and kTP are left), 5 - just run thermo and no EStokTP computation.  If you’ve specified in geometry options that you want to use an xyz as the level0 geometry, then TorsScan will automatically set the restart to 1 if it is not at a higher restart level already.
-Not enough options for you? If you have multiple reactants and/or products and want to specifically start at, say, a level1 computation for your second product you’ll have to go into data/EStokTP and delete or add a character to all of the modules prior to Opt_Reac2_1.  Then you have to run EStokTP directly instead of submitting it through TorsScan (which will overwrite those edits) by using the command /lcrc/projects/PACC/projects/codes/EstokTP/exe/estoktp.x &> estoktp.log.  
+Did something break in your computation and you don’t want to run it all all over again? No worries!  You can tell it to restart at almost any point. 0 – beginning (the default), 1 – if level0 optimization has successfully completed and you want to begin with level1, 2 – if level1 is completed and you want to start at the next module, 3 – The 1D hindered rotor scans are completed, 4 - the MD hindered rotor scans are completed (i.e., just symm, high level, irc, and kTP are left), 5 - just run thermo and no EStokTP computation.  If you’ve specified in geometry options that you want to use an xyz as the level0 geometry, then RCDriver will automatically set the restart to 1 if it is not at a higher restart level already.
+Not enough options for you? If you have multiple reactants and/or products and want to specifically start at, say, a level1 computation for your second product you’ll have to go into data/EStokTP and delete or add a character to all of the modules prior to Opt_Reac2_1.  Then you have to run EStokTP directly instead of submitting it through RCDriver (which will overwrite those edits) by using the command /lcrc/projects/PACC/projects/codes/EstokTP/exe/estoktp.x &> estoktp.log.  
 
 *Restart at: 1*
 
 
 **Parse all:**
 
-True will command TorsScan to parse all of the important quantum chemistry (and thermochemistry if Perform all thermochemistry? True)  properties, store them in the PACC database, and print them out at the end of the computation for all the species you’ve run the computation on.  There is not currently a way to parse partial.  
+True will command RCDriver to parse all of the important quantum chemistry (and thermochemistry if Perform all thermochemistry? True)  properties, store them in the PACC database, and print them out at the end of the computation for all the species you’ve run the computation on.  There is not currently a way to parse partial.  
 
 *Parse all: True*
 
@@ -265,12 +265,12 @@ or
 
 **My job didn’t complete. What happened?**
 
-So you followed all of the instructions and have a good input file but something still broke.  We have a few places to check to see what went wrong.  First I advise looking at the TorsScan output.  Did it break in the reac1-prod2.dat builds? Did you tell it you would provide an input file that you didn’t (<SMILES>.xyz, geo, anharm.log etc)? Make sure its there. Also, check to make sure your SMILES name is correct.  If it made it past that point: did it print your error and immediately stop? Maybe it was missing an executable (it should print that if so). Check the dependencies listed in section 3. Did it break when running mess?   Check to see if the me_files directory is populated. If that’s all good make sure you have the right executables for the thermochemistry computations. If it didn’t write the me_files, that means probably something went wrong in the EStokTP computation. Let’s check there… 
+So you followed all of the instructions and have a good input file but something still broke.  We have a few places to check to see what went wrong.  First I advise looking at the RCDriver output.  Did it break in the reac1-prod2.dat builds? Did you tell it you would provide an input file that you didn’t (<SMILES>.xyz, geo, anharm.log etc)? Make sure its there. Also, check to make sure your SMILES name is correct.  If it made it past that point: did it print your error and immediately stop? Maybe it was missing an executable (it should print that if so). Check the dependencies listed in section 3. Did it break when running mess?   Check to see if the me_files directory is populated. If that’s all good make sure you have the right executables for the thermochemistry computations. If it didn’t write the me_files, that means probably something went wrong in the EStokTP computation. Let’s check there… 
 First go to output/estoktp.out and search for ‘starting’.  What was the last thing it started?  Nothing? Then go to estoktp.log and see if it tells you it can’t find an executable or specifies another error.  Otherwise was the last thing started in output/estoktp.out an optimization? Then check geom.log (gaussian job) or molpro.log (molpro job) and see why the optimization failed.  Edit your input file accordingly and restart at the right point (see Restart at).  Does it look the the optimization was complete but it didn’t move on to the next step? Maybe it had trouble parsing your output – check to see if output/estoktp.out says it couldn’t find a keyword – it has trouble with some methods and basis sets.  Still haven’t found your issue?  Keep perusing the data/estoktp.out and estoktp.log and if you still can’t figure it out you may have to go into the data directory and look at those files. You’ll need some knowledge about how EStokTP works to use these, however.
 
-**Want to know more about what TorsScan is doing?**
+**Want to know more about what RCDriver is doing?**
 
-The majority of the files TorsScan generates are in the data directory.  To understand the contents of these files please view the EStokTP manual (put link here when available).  All of the python files in TorsScan (torsional_scan.py, build.py, anharm.py, and /home/elliott/Packages/QTC/heatform.py) are somewhat commented so feel free to dig around!  You can direct questions to Sarah Elliott.
+The majority of the files RCDriver generates are in the data directory.  To understand the contents of these files please view the EStokTP manual (put link here when available).  All of the python files in RCDriver (rc_driver.py, build.py, anharm.py, and /home/elliott/Packages/QTC/heatform.py) are somewhat commented so feel free to dig around!  You can direct questions to Sarah Elliott.
 
 ## (4) ACKNOWLEDGEMENT
 This research was supported by the Exascale Computing Project (ECP), Project Number: 17-SC-20-SC -- a collaborative effort of two DOE organizations, the Office of Science and the National Nuclear Security Administration, responsible for the planning and preparation of a capable exascale ecosystem including software, applications, hardware, advanced system engineering, and early test bed platforms to support the nation's exascale computing imperative -- and by the DOE Krell Computational Science Graduate Fellowship Grant Number DE-FG02-97ER25308. 
