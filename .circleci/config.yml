@@ -6,7 +6,6 @@ jobs:
         steps:
             - checkout                      # checkout the code
             - run: 
-                name: build
                 name: Create conda environments
                 command: |
                     echo 'export CONDA=$HOME/miniconda' >> $BASH_ENV
