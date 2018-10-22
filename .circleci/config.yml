@@ -1,0 +1,17 @@
+version: 2
+jobs:
+    print-hello-world:
+        docker:
+            - image: circleci/buildpack-deps:18.04
+        steps:
+            - checkout                      # checkout the code
+            - run: 
+                name: Print hello world
+                command: |
+                    echo "Hello Andreas"     # print hello world
+                    ls -la                  # run ls command
+workflows:
+    version: 2
+    build-all:
+        jobs:
+            - print-hello-world
