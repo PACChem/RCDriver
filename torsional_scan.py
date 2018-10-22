@@ -1,5 +1,3 @@
-#!/home/keceli/anaconda2/bin/python
-
 import os
 import sys
 import numpy as np
@@ -7,6 +5,9 @@ import rmg_reader as rg
 import logging
 import config  
 import estoktp as es
+from qtc import iotools as io
+from qtc import obtools as ob
+from qtc import tctools as tc
 log   = logging.getLogger(__name__)
 import argparse
 
@@ -65,16 +66,11 @@ def main(inputfile, outputfile, configfile = ''):
     paths  = Config.path_dic()
     paths['torsscan'] = torspath
     sys.path.insert(0, es.get_paths(paths,     'bin'))
-    sys.path.insert(0, es.get_paths(paths,     'qtc'))
     sys.path.insert(0, es.get_paths(paths,'torsscan'))
 
     log.info(random_cute_animal())
     #####  Build and Run EStokTP  ######
     ####################################
-    global io, ob
-    import obtools as ob
-    import iotools as io
-    import tctools as tc
     import shutil
  
     symnums = []

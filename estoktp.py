@@ -1,8 +1,9 @@
-#!/usr/bin/python
-
 import os
 import build 
 import logging
+from qtc import patools as pa
+from qtc import iotools as io
+from qtc import obtools as ob
 log = logging.getLogger(__name__)
 import shutil 
 
@@ -13,11 +14,6 @@ def build_files(args, paths, ists=False,nodes = 1, restartts=False):
     """
 
     import sys
-    sys.path.insert(0, paths['qtc'])
-    global io, ob
-    import patools as pa
-    import iotools as io
-    import obtools as ob
     
     build_subdirs()
     os.chdir('./data')
@@ -190,7 +186,7 @@ def get_paths(dic, key):
     if key in dic:
         val = dic[key]
     else:
-        print "path for {} not given in configfile".format(key)
+        log.info( "path for {} not given in configfile".format(key))
     return val
         
 def build_subdirs():
@@ -364,9 +360,6 @@ def check_geoms(qtc, name, nsamps):
     Checks MC geoms to make sure they are the same inchii as the starting species
     """
     import sys
-    sys.path.insert(0,qtc)
-    import iotools as io
-    import obtools as ob
 
     msg = 'Checking level0 geometries'
     log.debug(msg)
@@ -404,7 +397,6 @@ def check_hrs(n, typ):
     Checks MC geoms to make sure they are the same inchii as the starting species
     """
     import sys
-    import iotools as io
 
     msg = 'Checking me_files/{1}{0}_hr.me'.format(str(n),typ)
   
@@ -458,7 +450,6 @@ def me_file_abs_path():
     """
     Replaces relative path in mdhr file with absolute path
     """
-    import iotools as io
     if io.check_file('me_files/reac1_hr.me'):
         lines = io.read_file('me_files/reac1_hr.me')
         if "PotentialEnergySurface[kcal/mol]" in lines:

@@ -1,6 +1,11 @@
-#!/home/keceli/anaconda2/bin/python
 import os
 import logging
+from qtc import patools as pa
+from qtc import iotools as io
+from qtc import tctools as tc
+from qtc import obtools as ob
+from qtc import heatform as hf
+from qtc import anharm
 log = logging.getLogger(__name__)
 
 def extract_mess(filename):
@@ -237,13 +242,6 @@ def run(args, paths, d={}):
     Runs heatform, partition_function, thermp, pac99, and write chemkin file
     """
     import sys
-    sys.path.insert(0, paths['qtc'])
-    global pa, io, ob, tc
-    import patools as pa
-    import iotools as io
-    import tctools as tc
-    import obtools as ob
-    import heatform as hf
     import shutil
     import re
         
@@ -345,12 +343,6 @@ def get_anharm(rorp,i,natom,node,anlevel,anovrwrt,species, optlevel,paths=''):
     find the updated vpt2 frequencies
     """
     import sys
-    if paths:
-        sys.path.insert(0, paths['qtc'])
-    import patools as pa
-    import iotools as io
-    import obtools as ob
-    import anharm
     opts= {}
     species = species.split('_m')[0]
     opts['smiles'    ] =  species

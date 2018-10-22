@@ -1,9 +1,11 @@
-#!/usr/bin/python
-
 import os
 import numpy as np
 import sys
 import logging
+from qtc import obtools as ob
+from qtc import iotools as io
+from qtc import patools as pa
+from qtc import qctools as qc
 log = logging.getLogger(__name__)
 
 class MOL:
@@ -13,13 +15,6 @@ class MOL:
         """ 
         self.typemol    = typemol
         self.paths      = paths
-        self.convert    = paths['x2z'] 
-        global ob, pa, io, qc
-        sys.path.insert(0, paths['qtc'])
-        import obtools as ob
-        import iotools as io
-        import patools as pa
-        import qctools as qc
 
         #OPTIONS##############################
         self.nsamps     = opts[0]    #number of MonteCarlo sampling points
@@ -136,14 +131,14 @@ class MOL:
             intel   = paths['intel']
 
             if io.check_file(smilesfilename + '.xyz'):
-                os.system('{0}; {1}; {2} {3}.xyz > {4}'.format(gcc, intel, self.convert, smilesfilename,tempfile))
+                os.system('{0}; {1}; {2} {3}.xyz > {4}'.format(gcc, intel, 'x2z', smilesfilename,tempfile))
             else:
-                os.system('{0}; {1}; {2} {3}_m{4}.xyz >  {5}'.format(gcc, intel, self.convert, smilesfilename, str(self.mult),tempfile))
+                os.system('{0}; {1}; {2} {3}_m{4}.xyz >  {5}'.format(gcc, intel, 'x2z', smilesfilename, str(self.mult),tempfile))
 
             if os.stat(tempfile).st_size < 80 or 'not connected' in io.read_file(tempfile):
                 log.warning('Failed')
                 log.warning('Please check that directory name and cartesian coordinate file name are equivalent')
-                log.warning('Please check that test_chem is in location: ' +  self.convert)
+                log.warning('Please check that test_chem is in location: ' +  'x2z')
                 log.warning('Using OpenBabel zmat: no hindered rotors will be specified')
                 #Build openbabel zmat if x2z fails
                 atoms, measure = build_obzmat(smiles) 

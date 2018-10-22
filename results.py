@@ -1,7 +1,8 @@
-#!/usr/bin/python
-
 import os
 import logging
+from qtc import patools as pa
+from qtc import iotools as io
+from qtc import obtools as ob
 log = logging.getLogger(__name__)
 
 class RESULTS:
@@ -10,11 +11,6 @@ class RESULTS:
         self.set_levels()
 
         import sys
-        sys.path.insert(0, paths['qtc'])
-        global pa, io, ob
-        import patools as pa
-        import iotools as io
-        import obtools as ob
  
     def set_levels(self):
         optlevel = ''
