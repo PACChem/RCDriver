@@ -1,17 +1,22 @@
 version: 2
 jobs:
-    print-hello-world:
+    setup:
         docker:
             - image: circleci/buildpack-deps:18.04
         steps:
             - checkout                      # checkout the code
             - run: 
-                name: Print hello world
+                name: build
+                name: Create conda environments
                 command: |
-                    echo "Hello Andreas"     # print hello world
-                    ls -la                  # run ls command
+                    echo 'export CONDA=$HOME/miniconda' >> $BASH_ENV
+                    echo 'export PATH=$CONDA/bin:$PATH' >> $BASH_ENV
+                    source $BASH_ENV
+                    cd install
+                    ./install.sh
+                    ./rcd-env.sh
 workflows:
     version: 2
     build-all:
         jobs:
-            - print-hello-world
+            - setup

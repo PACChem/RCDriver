@@ -1,0 +1,15 @@
+name: rcd-env
+
+channels:
+  - openbabel
+  - mcs07
+
+dependencies:
+  - python=2.7
+  - numpy
+  - psutil
+  - openbabel
+  - cirpy
+  - pytest
+  - cmake
+
