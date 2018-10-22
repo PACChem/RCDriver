@@ -82,9 +82,10 @@ class ARGS:
         self.interval = 360     #Interval to scan
         self.nsteps   = '4'     #Number of steps on PES
         self.mdtype   = '2'     #2 or 3D?
+        self.mehead   = ''
 
         self.anharm   = 'false' #Use and/or run anharmonic xmat computation
-        self.anovrwrt = 'true' #Use and/or run anharmonic xmat computation
+        self.anovrwrt = 'false' #Use and/or run anharmonic xmat computation
         self.alltherm = 'true' #Run all the thermochemistry scrips?
         self.qtchf    = 'false'#Enter precomputed heat of formation in a comma-seperated list
         self.hfbasis  = 'auto' #Specify basis for heat of formation?
@@ -122,6 +123,8 @@ class ARGS:
                     self.meths.append([comps[line[0]],line[1],line[2]])
                     templist.append(comps[line[0]])
                 self.jobs.append(line[0])
+            elif 'anharm' in line[0].lower():
+                 self.anharm = '/'.join(line[1:])
             elif line[0] != '' and not 'kTP' in line:
                 if line[1] != '':
                     print (line[0] + ' is not a recognized module')
@@ -168,16 +171,17 @@ class ARGS:
         self.zedoptions  = get_param(self.zedoptions  , 'Level0 options'     , options)
         self.adiabatic  = get_param(self.adiabatic    , 'Adiabatic scan'     , options)
         self.esoptions  = get_param(self.esoptions  , 'Extra estoktp.dat'     , options)
-        self.nsamps  = get_param(self.nsamps  , 'sampling'     , options)
-        self.nrotor  = get_param(self.nrotor  , 'Number of rotors'     , options)
+        self.nsamps  = get_param(self.nsamps  , 'sampling'         , options)
+        self.nrotor  = get_param(self.nrotor  , 'Number of rotors' , options)
         self.abcd    = get_param(self.abcd    , 'Calculate no. MC points'     , options)
-        self.interval= get_param(self.interval, 'interval'     , options)
-        self.nsteps  = get_param(self.nsteps  , 'steps'        , options)
-        self.mdtype  = get_param(self.mdtype  , 'Multidim'     , options)
+        self.interval= get_param(self.interval, 'interval'         , options)
+        self.nsteps  = get_param(self.nsteps  , 'steps'            , options)
+        self.mdtype  = get_param(self.mdtype  , 'Multidim'         , options)
+        self.mehead  = get_param(self.mehead  , 'MESS header file' , options)
 
         self.restart = get_param(self.restart , 'Restart'      , options)
-
-        self.anharm  = get_param(self.anharm  , 'Anharmonic'   , options)
+        if self.anharm == 'false':
+            self.anharm  = get_param(self.anharm  , 'Anharmonic'   , options)
         self.anovrwrt= get_param(self.anovrwrt, 'Overwrite an' , options)
         self.alltherm= get_param(self.alltherm, 'thermochemist', options)
         self.qtchf   = get_param(self.qtchf   , 'heat of formation', options).replace(' ','').split(',')
@@ -195,7 +199,7 @@ class ARGS:
             self.restart = 2
         if self.reactype:
             self.jobs.append('kTP')
-            if (self.reactype.lower() == 'addition' or self.reactype.lower() == 'isomerization') and (self.wellp or self.wellp.lower() == 'false'):
+            if (self.reactype.lower() == 'addition_find' or self.reactype.lower() == 'isomerization_find') and (self.wellp or self.wellp.lower() == 'false'):
                     self.wellp = 'true'
         #if '0' in self.xyzstart and self.restart < 1:
         #    self.restart = 1

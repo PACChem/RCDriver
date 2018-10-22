@@ -72,12 +72,12 @@ class RESULTS:
                 hlen.append(float(io.read_file('me_files/ts_en.me')))
             else:
                 msg += 'No energy found for ts\n'
-            if self.args.wellr and self.args.wellr != 'false':
+            if self.args.wellr and self.args.wellr.lower() != 'false':
                 if io.check_file('me_files/wellr_en.me'):
                     hlen.append(float(io.read_file('me_files/wellr_en.me')))
                 else:
                    msg += 'No energy found for wellr\n'
-            if self.args.wellp and self.args.wellp != 'false':
+            if self.args.wellp and self.args.wellp.lower() != 'false':
                 if io.check_file('me_files/wellp_en.me'):
                     hlen.append(float(io.read_file('me_files/wellp_en.me')))
                 else:
@@ -92,6 +92,10 @@ class RESULTS:
         """
         printstr = '\n=====================\n          '+species+'\n=====================\n'
         d = {}
+        prog   = ''
+        method = '' 
+        basis  = ''
+        energy = ''
         optprog, optmethod, optbasis = self.optlevel.split('/')
         if self.enlevel == 'optlevel':
             prog   =  pa.get_prog(lines) 

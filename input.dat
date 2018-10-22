@@ -1,8 +1,7 @@
 Restart at: 0
-(0 - beginning, 1 - estoktp level 0 successfully completed
- 2 - estoktp level 1 completed, 3 - estoktp 1D completed, 
- 4 - estoktp MD completed, 5 - just run thermo)
-Parse all: True
+(0 - beginning,   1 - restart level1, 2 - restart 1D,
+ 3 - restart MD,  4 - restart HL,     5 - restart IRC,
+ 6 - retart Symm, 7 - restart kTP,    8 - just parse)
 
 ============
 Manual species input
@@ -21,15 +20,12 @@ Use input xyz: False
              False - make openbabel xyz from smiles
              prog/method/basis - use xyz stored in directory (recommended)
              logfilename.log - makes torsscan parse out xyz)
- 
 Use xyz as (start-starting geometry, 0-level0 geometry): start
-Select reac1 angles: 3, 2
-Select prod1 angles: 1, 4
 
 ==============
 BLUES options   
 ==============
-Run on node (0 if on login OR ssh-ed on node, d to debug): b437, b438
+Run on node (0 if on login OR ssh-ed on node, d to debug): b434
 No. of cores high: 16
 No. of cores  low: 10
 Memory high: 500
@@ -46,7 +42,9 @@ Scan interval (degrees): 360
 No. of steps on the PES: 12
 Adiabatic scan: False
 Multidim scan (0, 1, 2, 3D, or auto): 2
-Extra estoktp.dat lines: resIRC
+Select reac1 angles: 3, 2
+Select prod1 angles: 1, 4
+Extra estoktp.dat lines: 
 ------------------------------------------------ 
    Module      :    Program    :      Theory
 ------------------------------------------------
@@ -54,6 +52,7 @@ Opt            :      g09      : b3lyp/6-31g*
 Opt_1          :      g09      : m062x/6-311+g(d,p)
 1dTau          :      g09      : m062x/6-311+g(d,p)
 MdTau          :               :
+Anharm         :               :
 HL             :      molpro   : molpro_template.txt
 Symm           :               :
 Irc            :               :
@@ -62,10 +61,11 @@ Irc            :               :
 =============
 THERMO options
 =============
-Perform all thermochemistry? (default true): true
+Perform all thermochemistry? (default true): false
 Precomputed heat of formation (hf0kreac1, hf0kreac2, hf0kTS1, ... in kcal): false
 Anharmonic (0 for level0 theory, 1 for level1 theory, false for off): false
 Overwrite anharmonic: false
 Basis for heat of formation: auto 
+Parse all: False
 
 

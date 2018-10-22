@@ -14,6 +14,26 @@ def extract_mess(filename):
         log.error(filename + ' is empty, check estoktp.log')
     return lines
 
+def get_anlevel(anharm, meths = ''):
+    if len(anharm.split('/')) > 3:
+        anharm = anharm.replace('gaussian','g09')
+        split = anharm.split('/')
+        optlevel = '{}/{}/{}'.format(split[0],split[1],split[2])
+        anlevel =  '{}/{}/{}'.format(split[3],split[4],split[5])
+    elif len(anharm.split('/')) == 3:
+        anharm = anharm.replace('gaussian','g09')
+        split = anharm.split('/')
+        anlevel =  '{}/{}/{}'.format(split[0],split[1],split[2])
+        optlevel = anlevel
+    else:
+        for meth in meths:
+            if str(anharm) in meth[0]:
+                anlevel = meth[1] + '/' +  meth[2]
+                optlevel = meth[1] + '/' +  meth[2]
+                break
+            else:
+                anlevel = ''
+    return optlevel, anlevel
 
 def get_fr(s, natom, typ, anharm, anovrwrt, anfreqs, anxmat, meths, node, n=-1, store=False):
    
@@ -26,24 +46,7 @@ def get_fr(s, natom, typ, anharm, anovrwrt, anfreqs, anxmat, meths, node, n=-1, 
         fr = fr.split('End')[0]
         fr = fr.replace('Zero','End\n   Zero') 
     else:
-        if len(anharm.split('/')) > 3:
-            anharm = anharm.replace('gaussian','g09')
-            split = anharm.split('/')
-            optlevel = '{}/{}/{}'.format(split[0],split[1],split[2])
-            anlevel =  '{}/{}/{}'.format(split[3],split[4],split[5])
-        elif len(anharm.split('/')) == 3:
-            anharm = anharm.replace('gaussian','g09')
-            split = anharm.split('/')
-            anlevel =  '{}/{}/{}'.format(split[0],split[1],split[2])
-            optlevel = anlevel
-        else:
-            for meth in meths:
-                if str(anharm) in meth[0]:
-                    anlevel = meth[1] + '/' +  meth[2]
-                    optlevel = meth[1] + '/' +  meth[2]
-                    break
-                else:
-                    anlevel = ''
+        optlevel, anlevel = get_anlevel(anharm, meths)
         os.chdir('..')                          
         anfr,fr1, anx,fr2,fr3,_ = get_anharm(typ, str(n+1), natom, node, anlevel, anovrwrt, s, optlevel.split('/'))  #(xmat with projected out scanned torsional modes)
         fr =  fr1 +  fr2 + fr3
@@ -336,11 +339,17 @@ def run(args, paths, d={}):
     return dH0, dH298, hfbases, anfreqs, anxmat
 
 
-def get_anharm(rorp,i,natom,node,anlevel,anovrwrt,species, optlevel):
+def get_anharm(rorp,i,natom,node,anlevel,anovrwrt,species, optlevel,paths=''):
     """
     Runs the anharm module to project out torsional modes from xmatrix and
     find the updated vpt2 frequencies
     """
+    import sys
+    if paths:
+        sys.path.insert(0, paths['qtc'])
+    import patools as pa
+    import iotools as io
+    import obtools as ob
     import anharm
     opts= {}
     species = species.split('_m')[0]
@@ -349,18 +358,23 @@ def get_anharm(rorp,i,natom,node,anlevel,anovrwrt,species, optlevel):
     opts['theory'    ] =  anlevel
     opts['optlevel'  ] =  optlevel
     opts['anlevel'  ] =  anlevel
-    opts['logfile'   ] = 'geoms/' + rorp +  i + '_l1.log'
     opts['natoms'    ] =  natom 
-    opts['freqfile'  ] = 'me_files/' + rorp +  i + '_fr.me' 
-    opts['unprojfreq'] = 'me_files/' + rorp +  i + '_unpfr.me'
-    if io.check_file(species + 'anharm.log') and not anovrwrt.lower() == 'true':
-        opts['anharmlog' ] = species + 'anharm'
+    if 'ts' in rorp:
+        opts['logfile'   ] = 'geoms/' + 'tsgta_l1.log'
+        opts['freqfile'  ] = 'me_files/ts_fr.me' 
+        opts['unprojfreq'] = 'me_files/ts_unpfr.me'
+    else:
+        opts['logfile'   ] = 'geoms/' + rorp +  i + '_l1.log'
+        opts['freqfile'  ] = 'me_files/' + rorp +  i + '_fr.me' 
+        opts['unprojfreq'] = 'me_files/' + rorp +  i + '_unpfr.me'
+    if io.check_file(ob.get_smiles_filename(species) + 'anharm.log') and not anovrwrt.lower() == 'true':
+        opts['anharmlog' ] = ob.get_smiles_filename(species) + 'anharm'
         opts['writegauss'] = 'false'
         opts['rungauss'  ] = 'false'
     else:
         opts['writegauss'] = 'true'
         opts['rungauss'  ] = 'true'
-        opts['anharmlog' ] = species + 'anharm'
+        opts['anharmlog' ] = ob.get_smiles_filename(species) + 'anharm'
 
     return anharm.main(opts)
 

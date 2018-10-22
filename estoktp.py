@@ -6,7 +6,7 @@ import logging
 log = logging.getLogger(__name__)
 import shutil 
 
-def build_files(args, paths, ists=False,nodes = 1):
+def build_files(args, paths, ists=False,nodes = 1, restartts=False):
     """
     Runs the build functions for reacn.dat, prodn.dat, theory.dat, and estoktp.dat
     Requirements: QTC, Openbabel, Pybel (OR prepared cartesian coordinate files) and x2z
@@ -18,19 +18,19 @@ def build_files(args, paths, ists=False,nodes = 1):
     import patools as pa
     import iotools as io
     import obtools as ob
-
+    
     build_subdirs()
     os.chdir('./data')
     stoichs= []
     symnums= []
-    mdtype =  args.mdtype 
+    mdtype =  args.mdtype
     if not 'MdTau' in args.jobs:
        mdtype = ''
     #Create Read, Prod, and TS objects from parameters
     params = (args.nsamps, args.abcd,nodes,args.interval,args.nsteps,args.XYZ,args.xyzstart,mdtype)
     Reac   = build.MOL(paths, params, 'reac', args.reactype)
     Prod   = build.MOL(paths, params, 'prod')
-    params = (args.nsamps,args.abcd,nodes,args.interval,args.nsteps,args.XYZ,'start',mdtype)
+    params = (args.nsamps,args.abcd,nodes,args.interval,args.nsteps,args.XYZ,args.xyzstart,mdtype)
     TS     = build.MOL(paths, params,   'ts', args.reactype) 
 
     reacs = args.reacs
@@ -38,7 +38,7 @@ def build_files(args, paths, ists=False,nodes = 1):
      
     key = set_keys(args.reactype)
     i,j,k = 0,0,0
-    TSprops = [0, 0, [], [],[],''] #charge, spin, angles, atoms, sort, bond
+    TSprops = [0, 0, [], [],[],'',0] #charge, spin, angles, atoms, sort, bond, babs
     foundlist = []
     #Build reacn.dat
     for i, reac in enumerate(reacs,start=1):
@@ -67,6 +67,7 @@ def build_files(args, paths, ists=False,nodes = 1):
     TS.ijk  = Reac.ijk
     TS.sort = TSprops[4]
     TS.bond = TSprops[5]
+    TS.babs = TSprops[6]
     for k in range(3):
         if tss[k] and tss[k] != 'false':
             if k == 1 and 'true' in args.wellr.lower():
@@ -84,11 +85,11 @@ def build_files(args, paths, ists=False,nodes = 1):
                     if spin:
                         reac3 += '_m' + str(int(2*spin + 1))
                     log.info('Building {} '.format(reac3))
-                    angles, atoms =  build_well_dat(Reac, reac3, 3)
+                    angles, atoms =  build_well_dat(Reac, reac3, 3, args.jobs,restartts)
                 else: 
                     log.info('Two reactants are required when finding a reactant well')
             
-            elif k == 2 and (args.reactype.lower() == 'addition' or args.reactype.lower() == 'isomerization'):
+            elif k == 2 and (args.reactype.lower() == 'addition_well' or args.reactype.lower() == 'isomerization_well'):
                 if io.check_file('prod1.dat'):
                     msg = 'moving prod1.dat to wellp.dat for {} reaction'.format(args.reactype.lower())
                     log.info(msg)
@@ -112,7 +113,7 @@ def build_files(args, paths, ists=False,nodes = 1):
                     if spin:
                         prod3 += '_m' + str(int(2*spin + 1))
                     log.info('Building {} '.format(prod3))
-                    angles, atoms =  build_well_dat(Prod, prod3, 4)
+                    angles, atoms =  build_well_dat(Prod, prod3, 4, args.jobs, restartts)
                 else: 
                     log.info('Two products are required when finding a product well')
 
@@ -123,16 +124,21 @@ def build_files(args, paths, ists=False,nodes = 1):
                 TS.mult   = int(2.*TSprops[1] + 1)
                 TS.symnum = ' 1'
                 if k == 0:
-                    zmatstring = TS.build(tstype[k], args.reactype, TSprops[2], TSprops[3])
+                    if 'geomdir' in args.XYZ and io.check_file('../geomdir/ts.xyz'):
+                        angles, atoms =  build_well_dat(TS, args.reactype, 'ts', args.jobs, restartts)
+                    else:
+                        zmatstring = TS.build(tstype[k], args.reactype, args.jobs, False, TSprops[2], TSprops[3], restartts)
+                        zmat = tstype[k] + '.dat'
+                        io.write_file(zmatstring, zmat)
                 else:
                     params = ('1', args.abcd,nodes,args.interval,args.nsteps,'False','start','MdTau' in args.jobs)
                     TS   = build.MOL(paths, params,'ts') 
                     TS.charge = TSprops[0]
                     TS.mult   = int(2.*TSprops[1] + 1)
                     TS.symnum = ' 1'
-                    zmatstring =TS.build(tstype[k], [], [])
-                zmat = tstype[k] + '.dat'
-                io.write_file(zmatstring, zmat)
+                    zmatstring =TS.build(tstype[k], args.reactype, args.jobs, False, TSprops[2])
+                    zmat = tstype[k] + '.dat'
+                    io.write_file(zmatstring, zmat)
                 msg = 'Completed'
                 log.info(msg)
 
@@ -141,7 +147,15 @@ def build_files(args, paths, ists=False,nodes = 1):
     if args.reactype:
         msg = 'Building me_head.dat'
         log.debug(msg)
-        headstring = build.build_mehead()
+        if args.mehead:
+            if io.check_file('../' + args.mehead):
+                headstring = io.read_file('../' + args.mehead)
+            elif io.check_file(args.me_head):
+                headstring = io.read_file(args.mehead)
+            else:             
+                headstring = build.build_mehead()
+        else:             
+            headstring = build.build_mehead()
         io.write_file(headstring, 'me_head.dat')
         msg = 'Completed'
         log.info(msg)
@@ -218,6 +232,14 @@ def update_jobs(jobs, restart):
             jobs[l]  = 'n' + job
         if job == 'MdTau' and restart > 3:
             jobs[l]  = 'n' + job
+        if job == 'HL'    and restart > 4:
+            jobs[l]  = 'n' + job
+        if job == 'Irc'   and restart > 5:
+            jobs[l]  = 'n' + job
+        if job == 'Symm'  and restart > 6:
+            jobs[l]  = 'n' + job
+        if job == 'kTP'  and restart > 7:
+            jobs[l]  = 'n' + job
     return jobs
 
 def prepare_mdtau(nrot, jobs):
@@ -244,7 +266,7 @@ def prep_reacs4TS(MOL, reac, i, key, angles, atoms, sort, tsprops, reactype, pat
     """
     if reactype:
         tsprops[0] += MOL.charge
-        if reactype.lower() == 'addition' or reactype.lower() == 'isomerization':
+        if 'addition' in reactype.lower()  or 'isomerization' in reactype.lower():
             tsprops[1] = min(abs(tsprops[1] + 1./2 * (float(MOL.mult) - 1)), abs(tsprops[1] - 1./2 * (float(MOL.mult)-1)))
         else:
             tsprops[1] = max(abs(tsprops[1] + 1./2 * (float(MOL.mult) - 1)), abs(tsprops[1] - 1./2 * (float(MOL.mult)-1)))
@@ -253,15 +275,28 @@ def prep_reacs4TS(MOL, reac, i, key, angles, atoms, sort, tsprops, reactype, pat
         if i == 1:
             sort = MOL.sort
             ijk  = MOL.ijk
+            wasdummy=False
             if sort:
                 for i in range(len(ijk)):
                     if ijk[i]:
-                        ijk[i] = sort[int(ijk[i])-1]
+                        if 'X' not in ijk[i]:
+                            ijk[i] = sort[int(ijk[i])-1]
+                        else:
+                            ijk[i] = ijk[i].replace('X','')
+                            wasdummy = True
+                if wasdummy and len(atoms) < 4:
+                    for i in range(2):
+                        if int(ijk[i]) == 2:
+                            ijk[i] = '3'
             tsprops[4] = sort
             MOL.ijk = ijk
             tsprops[5] +=  atoms[int(ijk[0])-1][0][0]
         else:
             tsprops[5] += atoms[0][0][0]
+            if len(atoms) > 1:
+                tsprops[6]  = 1
+                if len(atoms) > 2:
+                    tsprops[6]  = 2
         if reac in key:
             shutil.copyfile(paths['torsscan'] + '/abstractors/' + reac + '.dat','reac2.dat')
     return tsprops
@@ -279,7 +314,7 @@ def build_mol_dat(MOL, mollist, n, stoichs, symnums, jobs, foundlist, select, md
         MOL.MDTAU, jobs = prepare_mdtau(len(angles), jobs)
     if mdtype:
         log.info(msg)
-    zmatstring = MOL.build(n, mol, angles, atoms,  measure)
+    zmatstring = MOL.build(n, mol, jobs, found, angles, atoms,  measure)
     zmat = MOL.typemol + str(n) + '.dat'
     io.write_file(zmatstring, zmat)
     stoichs.append(MOL.stoich)
@@ -287,9 +322,12 @@ def build_mol_dat(MOL, mollist, n, stoichs, symnums, jobs, foundlist, select, md
     foundlist.append(found)
     return mollist, angles, atoms, jobs, foundlist, stoichs, symnums
 
-def build_well_dat(MOL, mol, n):
-    atoms, measure, angles, found, msg  = MOL.cart2zmat(mol)
-    zmatstring = MOL.build(n, mol, angles, atoms,  measure)
+def build_well_dat(MOL, mol, n, jobs, restartts):
+    if n == 'ts':
+        atoms, measure, angles, found, msg  = MOL.cart2zmat('ts')
+    else:
+        atoms, measure, angles, found, msg  = MOL.cart2zmat(mol)
+    zmatstring = MOL.build(n, mol, jobs, found, angles, atoms,  measure,restartts)
     log.info(zmatstring)
     zmat = MOL.typemol +  '.dat'
     io.write_file(zmatstring, zmat)
@@ -338,20 +376,22 @@ def check_geoms(qtc, name, nsamps):
     coords = io.read_file(filename)
     lowcoords = coords
     mol = ob.get_mol(coords)
-    name =  ob.get_inchi_key(mol)
+    inchi =  ob.get_inchi_key(mol)
     energy = float(coords.split('\n')[1])
     for i in range(2, int(nsamps) + 1):
         filename =  'geoms/' + name + '_' + '{}'.format(i).zfill(n) + '.xyz'
+        log.info(filename)
         if io.check_file(filename):
             coords = io.read_file(filename)
             mol = ob.get_mol(coords)
-            if name ==  ob.get_inchi_key(mol):
+            if inchi ==  ob.get_inchi_key(mol):
                 if float(coords.split('\n')[1]) < energy:
                    energy = float(coords.split('\n')[1]) 
+                   log.info('Lower energy of {:.2f} found in {}'.format(energy,filename))
                    lowcoords = coords
                    lowfilename   = filename
             else: 
-                print('Connectivity change after torsional optimization. (InChI mismatch) {}.')
+                log.info('Connectivity change after torsional optimization. (InChI mismatch) in {}.'.format(filename))
     io.cp(lowfilename,'torsopt.xyz')
     #io.write_file("\n".join(lowcoords.split("\n")),'geom.xyz')
     io.write_file("\n".join(lowcoords.split("\n")[2:]),'geom.xyz')
@@ -485,15 +525,22 @@ def gather_mcgeoms(nodes):
     return j, k 
 
 def run_level0(args, paths):
-    run_zero(args, paths)
+    logging.info("========\nBEGIN LEVEL 0\n========\n")
+    success = run_zero(args, paths)
     if args.reactype:
-        run_zero(args, paths, True)
+        logging.info("========\nBEGIN TS LEVEL 0\n========\n")
+        success = run_zero(args, paths, True)
+        if not success:
+            logging.info("========\nRESTARTING TS LEVEL 0\n========\n")
+            success = run_zero(args,paths,True,True)
     return
  
-def run_zero(args, paths, ists=False):
-    stoichs, symnums = build_files(args, paths, ists, len(args.nodes))
+def run_zero(args, paths, ists=False, restartts=False):
+    stoichs, symnums = build_files(args, paths, ists, len(args.nodes), restartts)
+    successful = True
     if not 'd' in args.nodes[0]:
         if len(args.nodes) > 1:
+            import time
             for i, node in enumerate(args.nodes):
                 if not ists:
                     io.rmrf(node)
@@ -507,10 +554,10 @@ def run_zero(args, paths, ists=False):
                         filename =  'output/reac' + str(i+1) + '_opt.out'
                         if io.check_file('../' + filename):
                             shutil.copy('../' + filename, filename)
+                time.sleep(5)
                 execute(paths, node, '&')
                 io.cd('..')
             running = True
-            import time
             outlength = {}
             for node in args.nodes:
                 outlength[node] = 0
@@ -547,18 +594,21 @@ def run_zero(args, paths, ists=False):
             filename = 'output/' + filename.replace('.xyz','.out')
             shutil.copy(filename, 'output/prod' + str(i+1) + '_opt.out')
         if ists:
-            filename = check_geoms(paths['qtc'], 'ts', j[4])
-            filename = filename.split('/')[1].split('_')[0] + '_opt_' +  filename.split('_')[1]
-            filename = 'output/' + filename.replace('.xyz','.out')
-            shutil.copy(filename, 'output/ts_opt.out')
-            if args.wellp and args.wellp.lower() != 'false' and 'find' not in args.wellp.lower():
-                filename = check_geoms(paths['qtc'], 'wellp', j[6])
-                filename = filename.split('/')[1].split('_')[0] + '_opt_' +  filename.split('_')[1]
-                filename = 'output/' + filename.replace('.xyz','.out')
-                shutil.copy(filename, 'output/wellp_opt.out')
-            if args.wellr and args.wellr.lower() != 'false' and 'find' not in args.wellr.lower():
-                filename = check_geoms(paths['qtc'], 'wellr', j[5])
-                filename = filename.split('/')[1].split('_')[0] + '_opt_' +  filename.split('_')[1]
-                filename = 'output/' + filename.replace('.xyz','.out')
-                shutil.copy(filename, 'output/wellr_opt.out')
-    return
+            if not io.check_file('geoms/ts_01.xyz'):
+                successful = False
+            if io.check_file('output/ts_opt_01.out'):
+                shutil.copy('output/ts_opt_01.out', 'output/ts_opt.out')
+        #    filename = filename.split('/')[1].split('_')[0] + '_opt_' +  filename.split('_')[1]
+        #    filename = 'output/' + filename.replace('.xyz','.out')
+        #    shutil.copy(filename, 'output/ts_opt.out')
+        #    if args.wellp and args.wellp.lower() != 'false' and 'find' not in args.wellp.lower():
+        #        filename = check_geoms(paths['qtc'], 'wellp', j[6])
+        #        filename = filename.split('/')[1].split('_')[0] + '_opt_' +  filename.split('_')[1]
+        #        filename = 'output/' + filename.replace('.xyz','.out')
+        #        shutil.copy(filename, 'output/wellp_opt.out')
+        #    if args.wellr and args.wellr.lower() != 'false' and 'find' not in args.wellr.lower():
+        #        filename = check_geoms(paths['qtc'], 'wellr', j[5])
+        #        filename = filename.split('/')[1].split('_')[0] + '_opt_' +  filename.split('_')[1]
+        #        filename = 'output/' + filename.replace('.xyz','.out')
+        #        shutil.copy(filename, 'output/wellr_opt.out')
+    return successful
