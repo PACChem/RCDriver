@@ -1,9 +1,7 @@
 name: rcd-env
-
 channels:
   - openbabel
   - mcs07
-
 dependencies:
   - python=2.7
   - numpy
@@ -12,4 +10,3 @@ dependencies:
   - cirpy
   - pytest
   - cmake
-

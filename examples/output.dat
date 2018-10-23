@@ -1,0 +1,56 @@
+
+    
+            ,,,         ,,,
+          ;"   ^;     ;'   ",
+         ;    s$$$$$$$s      ;
+          ,  ss$$$$$$$$$$s  ,'
+          ;s$$$$$$$$$$$$$$$
+          $$$$$$$$$$$$$$$$$$
+         $$$$P""Y$$$Y""W$$$$$
+         $$$$  0"$$$"0  $$$$$
+         $$$$  .$$$$$.  $$$$
+          $$$$$$$$$$$$$$$$$
+     TORS  "Y$$$"'*'"$$$Y"  SCAN    
+              "$$b.d$$"        
+========
+BEGIN LEVEL 0
+========
+
+Status: Building directories
+Completed
+Status: Building reac1.dat
+Completed
+Status: Building theory.dat
+Completed
+Status: Building estoktp.dat
+Completed
+========
+BEGIN LEVEL 1 and 1DHR
+========
+
+Status: Building directories
+Completed
+Status: Building reac1.dat
+Completed
+Status: Building theory.dat
+Completed
+Status: Building estoktp.dat
+Completed
+Status: Submitting EStokTP job to node d
+Task skipped
+========
+BEGIN MDHR, HL
+========
+
+Status: Building directories
+Completed
+Status: Building reac1.dat
+Completed
+Status: Building theory.dat
+Completed
+Status: Building estoktp.dat
+Completed
+Status: Submitting EStokTP job to node d
+Task skipped
+WARNING: No energy found for reac1
+

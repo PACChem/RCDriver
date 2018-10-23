@@ -1,4 +1,6 @@
-conda env create -f `dirname "$0"` /enironment.yml
+#!/usr/bin/env bash
+
+conda env create -f `dirname "$0"`/environment.yml
 source activate rcd-env
 cd $(mktemp -d)
 git clone --recursive https://github.com/PACChem/x2z .
