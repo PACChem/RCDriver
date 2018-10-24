@@ -6,9 +6,9 @@ import numpy as np
 import argparse
 import logging
 
-from rcd import config  
-from rcd import rmg_reader as rg
-from rcd import estoktp as es
+import config  
+import rmg_reader as rg
+import estoktp as es
 
 from qtc import iotools as io
 from qtc import obtools as ob
@@ -261,7 +261,7 @@ def main(inputfile, outputfile, configfile = ''):
             args.jobs = alljobs
             args.restart = 2
         if args.anharm.lower() != 'false' and 'd' not in args.nodes[0]:
-            from rcd import thermo
+            import thermo
             log.info("========\nBEGIN VPT2\n========\n")
             optlevel, anlevel = thermo.get_anlevel(args.anharm, args.meths)
             for n, reac in enumerate(args.reacs):
@@ -391,7 +391,7 @@ def main(inputfile, outputfile, configfile = ''):
          
     #######  Parse results  #########
     ########################################
-    from rcd import results 
+    import results 
     rs = results.RESULTS(args, paths)
     args.hlen = rs.get_hlen()
     args.optlevel = rs.optlevel
@@ -402,7 +402,7 @@ def main(inputfile, outputfile, configfile = ''):
          rs.get_results()
     #######  Build and run thermo  #########
     ########################################
-    from rcd import thermo
+    import thermo
     rs.thermo = False
     if args.alltherm.lower() == 'true':
         rs.thermo = True
