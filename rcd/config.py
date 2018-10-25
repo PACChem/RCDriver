@@ -123,6 +123,8 @@ class ARGS:
                 self.jobs.append(line[0])
             elif 'anharm' in line[0].lower():
                  self.anharm = '/'.join(line[1:])
+                 if self.anharm.strip() == '/':
+                     self.anharm = 'false'
             elif line[0] != '' and not 'kTP' in line:
                 if line[1] != '':
                     print (line[0] + ' is not a recognized module')
