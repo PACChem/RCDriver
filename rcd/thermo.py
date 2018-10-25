@@ -20,6 +20,8 @@ def extract_mess(filename):
     return lines
 
 def get_anlevel(anharm, meths = ''):
+    optlevel = ''
+    anlevel  = ''
     if len(anharm.split('/')) > 3:
         anharm = anharm.replace('gaussian','g09')
         split = anharm.split('/')
