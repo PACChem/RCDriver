@@ -14,6 +14,7 @@ class CONFIG:
         else:
             logging.basicConfig(format='%(levelname)s%(message)s', level=loglevel)
         self.configfile = configfile
+    
 
     def get_paths(self):
         """
