@@ -1,7 +1,8 @@
 Restart at: 0
-(0 - beginning,   1 - restart level1, 2 - restart 1D,
- 3 - restart MD,  4 - restart HL,     5 - restart IRC,
- 6 - retart Symm, 7 - restart kTP,    8 - just parse)
+(0 - beginning, 0.5 - restart TS search,  1 - restart level1,
+ 2 - restart 1D,  3 - restart MD,         4 - restart HL,    
+ 5 - restart IRC, 6 - retart Symm,        7 - restart kTP,    
+ 8 - just parse)
 
 ============
 Manual species input

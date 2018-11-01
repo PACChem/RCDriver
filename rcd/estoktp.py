@@ -220,7 +220,7 @@ def update_jobs(jobs, restart):
     Updates the job list based on restart level
     """
     for l,job in enumerate(jobs):
-        if job == 'Opt'   and restart > 0:
+        if job == 'Opt'   and restart > 0.5:
             jobs[l]  = 'n' + job
         if job == 'Opt_1' and restart > 1:
             jobs[l]  = 'n' + job
@@ -517,7 +517,8 @@ def gather_mcgeoms(nodes):
 
 def run_level0(args, paths):
     logging.info("========\nBEGIN LEVEL 0\n========\n")
-    success = run_zero(args, paths)
+    if args.restart < 0.5:
+        success = run_zero(args, paths)
     if args.reactype:
         logging.info("========\nBEGIN TS LEVEL 0\n========\n")
         success = run_zero(args, paths, True)

@@ -14,7 +14,7 @@ class CONFIG:
         else:
             logging.basicConfig(format='%(levelname)s%(message)s', level=loglevel)
         self.configfile = configfile
-        
+        self.configfile = '/home/elliott/Packages/RCDriver/configfile.txt' 
     def get_paths(self):
         """
         Read lines from configfile and return them as a list
@@ -194,7 +194,7 @@ class ARGS:
         if self.restart.lower() == 'false':
             self.restart = 0
         else:
-            self.restart = int(self.restart)
+            self.restart = float(self.restart)
         if '1' in self.xyzstart and self.restart < 2:
             self.restart = 2
         if self.reactype:
