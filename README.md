@@ -1,5 +1,4 @@
 # RCDriver
-<<<<<<< HEAD
 [//]: # (Badges)
 [![CircleCI](https://circleci.com/gh/PACChem/RCDriver.svg?style=svg)](https://circleci.com/gh/PACChem/RCDriver)
 [![Anaconda-Server Badge](https://anaconda.org/pacchem/rcdriver/badges/version.svg)](https://anaconda.org/pacchem/rcdriver)
