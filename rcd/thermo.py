@@ -243,7 +243,6 @@ def run(args, paths, d={}):
     """
     Runs heatform, partition_function, thermp, pac99, and write chemkin file
     """
-    import sys
     import shutil
     import re
         
@@ -344,7 +343,6 @@ def get_anharm(rorp,i,natom,node,anlevel,anovrwrt,species, optlevel,paths=''):
     Runs the anharm module to project out torsional modes from xmatrix and
     find the updated vpt2 frequencies
     """
-    import sys
     opts= {}
     species = species.split('_m')[0]
     opts['smiles'    ] =  species
