@@ -1,10 +1,11 @@
-name: rcd-env
+name: home
 channels:
   - openbabel
   - mcs07
 dependencies:
   - python=2.7
   - numpy
+  - pandas
   - psutil
   - openbabel
   - cirpy

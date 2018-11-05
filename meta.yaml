@@ -1,0 +1,24 @@
+# cmd: conda build . --python 2 -c pacchem -c conda-forge -c openbabel -c mcs07
+package: 
+    name: rcdriver
+    version: 0.1.0
+
+source:
+    path: .
+
+requirements:
+    build:
+       - python=2.7
+    run:
+      - numpy
+      - psutil
+      - cirpy
+      - pytest
+      - pytest-cov
+      - cmake
+      - openbabel::openbabel
+      - conda-forge::xorg-libxrender
+      - pacchem::x2z
+      - pacchem::mess
+      - pacchem::estoktp
+      - pacchem::qtc

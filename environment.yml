@@ -1,0 +1,20 @@
+name: rcd-env
+channels:
+  - openbabel
+  - mcs07
+  - conda-forge
+  - pacchem
+dependencies:
+  - python=2.7
+  - numpy
+  - psutil
+  - cirpy
+  - pytest
+  - cmake
+  - pytest-cov
+  - openbabel::openbabel
+  - conda-forge::xorg-libxrender
+  - pacchem::x2z
+  - pacchem::mess
+  - pacchem::estoktp
+  - pacchem::qtc

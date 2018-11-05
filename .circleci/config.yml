@@ -2,19 +2,13 @@ version: 2
 jobs:
     setup:
         docker:
-            - image: circleci/buildpack-deps:18.04
+            - image: continuumio/miniconda3 
         steps:
             - checkout                      # checkout the code
             - run: 
                 name: Create conda environments
                 command: |
-                    echo 'export CONDA=$HOME/miniconda' >> $BASH_ENV
-                    echo 'export PATH=$CONDA/bin:$PATH' >> $BASH_ENV
-                    source $BASH_ENV
-                    cd install
-                    ./install.sh
-                    ./rcd-env.sh
-                    cd ..
+                    conda env create -f environment.yml
             - run: 
                 name: Install and run examples
                 command: |
