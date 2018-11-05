@@ -1,4 +1,6 @@
 # RCDriver
+[//]: # (Badges)
+[![CircleCI](https://circleci.com/gh/snelliott/RCDriver.svg?style=svg)](https://circleci.com/gh/snelliott/RCDriver)
 
 Sarah N. Elliott, Murat Keceli, and Stephen J. Klippenstein
 
