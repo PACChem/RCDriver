@@ -4,7 +4,6 @@
 [![Anaconda-Server Badge](https://anaconda.org/pacchem/rcdriver/badges/version.svg)](https://anaconda.org/pacchem/rcdriver)
 [![Anaconda-Server Badge](https://anaconda.org/pacchem/rcdriver/badges/platforms.svg)](https://anaconda.org/pacchem/rcdriver)
 [![Anaconda-Server Badge](https://anaconda.org/pacchem/rcdriver/badges/installer/conda.svg)](https://conda.anaconda.org/pacchem)
-
 Sarah N. Elliott, Murat Keceli, and Stephen J. Klippenstein
 
 RCDriver is a set of python modules that when given a short input file (that requests a SMILES molecule name and levels of theory) will perform hindered rotor scans and transition state searches.  Specifically it sets up and performs EStokTP computations and subsequently parses the resulting output files to compute 0 K heats of formation and updated anharmonic constants.  Given the option, RCDriver will use those computations to generate mess input and can run the mess partition 
