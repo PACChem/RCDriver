@@ -1,0 +1,33 @@
+nosmp dthresh ethresh
+5  1.0  0.00001
+
+ntau number of sampled coordinates
+0
+ -->nametau, taumin, taumax
+
+nhind
+0
+ -->namehind,hindmin,hindmax,nhindsteps,period
+
+natom natomt ilin
+3 3 0
+
+charge  spin  atomlabel
+0 2
+o100
+o101  o100  r100
+h102  o101  r101  o100  a100
+
+intcoor
+r100   1.3362 
+r101   0.9713 
+a100 103.8944 
+
+SymmetryFactor
+1
+
+nelec
+1
+ 0.  2.
+
+end

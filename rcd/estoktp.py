@@ -294,7 +294,7 @@ def prep_reacs4TS(MOL, reac, i, key, angles, atoms, sort, tsprops, reactype, pat
                 if len(atoms) > 2:
                     tsprops[6]  = 2
         if reac in key:
-            shutil.copyfile(paths['torsscan'] + '/abstractors/' + reac + '.dat','reac2.dat')
+            shutil.copyfile(paths['torsscan'] + 'rcd/abstractors/' + reac + '.dat','reac2.dat')
     return tsprops
 
     

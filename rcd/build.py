@@ -931,9 +931,10 @@ def tau_hind_str(atomslist, jobs, angleslist, interval, nsteps, mdtau, ijk =[], 
     periods   = []
     #TAU
     string  = '\nntau number of sampled coordinates\n'
-    if babs > 1:
-        anglen += 2 
-    elif babs > 0:
+    #if babs > 1:
+    #    anglen += 2 
+    #elif babs > 0:
+    if babs > 0:
         anglen += 1
           
     string += str(anglen) + '\n'
@@ -946,8 +947,8 @@ def tau_hind_str(atomslist, jobs, angleslist, interval, nsteps, mdtau, ijk =[], 
             periods.append(periodicity)
     if babs > 0: 
         string += 'BABS2 0 ' + str(interval) +  '\n'  
-        if babs > 1:
-            string += 'BABS3 0 ' + str(interval) +  '\n'  
+        #if babs > 1:
+        #    string += 'BABS3 0 ' + str(interval) +  '\n'  
 
     #1 and 2D HIND
     string += '\nnhind\n'
@@ -959,8 +960,8 @@ def tau_hind_str(atomslist, jobs, angleslist, interval, nsteps, mdtau, ijk =[], 
             string += hin + ' 0 ' + str(float(interval)/periodicity)  + ' ' + str(int(round(float(nsteps)/periodicity))) + ' ' + str(periodicity)  + '\n'  
         if babs > 0: 
             string += 'BABS2 0 ' + str(float((interval)))   + ' ' + str(int(round(float(nsteps)))) + ' 1\n' 
-            if babs > 1: 
-                string += 'BABS3 0 ' + str(float((interval)))   + ' ' + str(int(round(float(nsteps)))) + ' 1\n' 
+            #if babs > 1: 
+            #    string += 'BABS3 0 ' + str(float((interval)))   + ' ' + str(int(round(float(nsteps)))) + ' 1\n' 
     else:
         string += '0\n'
     if mdtau and anglen >= int(mdtau):
@@ -968,11 +969,12 @@ def tau_hind_str(atomslist, jobs, angleslist, interval, nsteps, mdtau, ijk =[], 
         string += '\nnhind' + mdtau + 'D\n'
         string += '1\n'
         string += ' -->namehind,hindmin,hindmax,nhindsteps,period\n'
-        if babs > 1 and anglen == int(mdtau):
-            string += 'BABS2 0 ' + str(float((interval)))   + ' ' + str(int(round(float(nsteps)))) + ' 1\n'
-            string += 'BABS3 0 ' + str(float((interval)))   + ' ' + str(int(round(float(nsteps)))) + ' 1\n'
-            mdtau = str( int(mdtau) - 2 )
-        elif babs > 0 and anglen == int(mdtau):
+        #if babs > 1 and anglen == int(mdtau):
+        #    string += 'BABS2 0 ' + str(float((interval)))   + ' ' + str(int(round(float(nsteps)))) + ' 1\n'
+        #    string += 'BABS3 0 ' + str(float((interval)))   + ' ' + str(int(round(float(nsteps)))) + ' 1\n'
+        #    mdtau = str( int(mdtau) - 2 )
+        #elif babs > 0 and anglen == int(mdtau):
+        if babs > 0 and anglen == int(mdtau):
             string += 'BABS2 0 ' + str(float((interval)))   + ' ' + str(int(round(float(nsteps)))) + ' 1\n'
             mdtau = str( int(mdtau) - 1 )
         if mdtau >= anglen:
