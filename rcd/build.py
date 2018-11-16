@@ -9,12 +9,11 @@ from qtc import qctools as qc
 log = logging.getLogger(__name__)
 
 class MOL:
-    def __init__(self,paths, opts,typemol = 'reac', reactype = ''):
+    def __init__(self, opts,typemol = 'reac', reactype = ''):
         """
         MOL object is reac, prod, or ts.
         """ 
         self.typemol    = typemol
-        self.paths      = paths
 
         #OPTIONS##############################
         self.nsamps     = opts[0]    #number of MonteCarlo sampling points
@@ -126,14 +125,11 @@ class MOL:
             #######   RUN X2Z   #################
             #####################################
             tempfile = 'temp'
-            paths = self.paths
-            gcc     = paths['gcc']
-            intel   = paths['intel']
 
             if io.check_file(smilesfilename + '.xyz'):
-                os.system('{0}; {1}; {2} {3}.xyz > {4}'.format(gcc, intel, 'x2z', smilesfilename,tempfile))
+                os.system('{0} {1}.xyz > {2}'.format('x2z', smilesfilename,tempfile))
             else:
-                os.system('{0}; {1}; {2} {3}_m{4}.xyz >  {5}'.format(gcc, intel, 'x2z', smilesfilename, str(self.mult),tempfile))
+                os.system('{0} {1}_m{2}.xyz >  {3}'.format('x2z', smilesfilename, str(self.mult),tempfile))
 
             if os.stat(tempfile).st_size < 80 or 'not connected' in io.read_file(tempfile):
                 log.warning('Failed')
@@ -755,7 +751,6 @@ def build_estoktp(params, jobs, nreacs, nprods, tss, xyzstart, foundlist,isTS=Fa
         eststring += '  ' + str(nts) + 'TS' + eststr
     if 'Irc' in jobs:
         eststring += '\n Variational'
-        eststring += '\n MdTunnel'
     for line in esoptions.split(','):
         eststring += '\n {}'.format(line.strip())
     if nprods > 0:
@@ -931,9 +926,10 @@ def tau_hind_str(atomslist, jobs, angleslist, interval, nsteps, mdtau, ijk =[], 
     periods   = []
     #TAU
     string  = '\nntau number of sampled coordinates\n'
-    if babs > 1:
-        anglen += 2 
-    elif babs > 0:
+    #if babs > 1:
+    #    anglen += 2 
+    #elif babs > 0:
+    if babs > 0:
         anglen += 1
           
     string += str(anglen) + '\n'
@@ -946,8 +942,8 @@ def tau_hind_str(atomslist, jobs, angleslist, interval, nsteps, mdtau, ijk =[], 
             periods.append(periodicity)
     if babs > 0: 
         string += 'BABS2 0 ' + str(interval) +  '\n'  
-        if babs > 1:
-            string += 'BABS3 0 ' + str(interval) +  '\n'  
+        #if babs > 1:
+        #    string += 'BABS3 0 ' + str(interval) +  '\n'  
 
     #1 and 2D HIND
     string += '\nnhind\n'
@@ -959,8 +955,8 @@ def tau_hind_str(atomslist, jobs, angleslist, interval, nsteps, mdtau, ijk =[], 
             string += hin + ' 0 ' + str(float(interval)/periodicity)  + ' ' + str(int(round(float(nsteps)/periodicity))) + ' ' + str(periodicity)  + '\n'  
         if babs > 0: 
             string += 'BABS2 0 ' + str(float((interval)))   + ' ' + str(int(round(float(nsteps)))) + ' 1\n' 
-            if babs > 1: 
-                string += 'BABS3 0 ' + str(float((interval)))   + ' ' + str(int(round(float(nsteps)))) + ' 1\n' 
+            #if babs > 1: 
+            #    string += 'BABS3 0 ' + str(float((interval)))   + ' ' + str(int(round(float(nsteps)))) + ' 1\n' 
     else:
         string += '0\n'
     if mdtau and anglen >= int(mdtau):
@@ -968,11 +964,12 @@ def tau_hind_str(atomslist, jobs, angleslist, interval, nsteps, mdtau, ijk =[], 
         string += '\nnhind' + mdtau + 'D\n'
         string += '1\n'
         string += ' -->namehind,hindmin,hindmax,nhindsteps,period\n'
-        if babs > 1 and anglen == int(mdtau):
-            string += 'BABS2 0 ' + str(float((interval)))   + ' ' + str(int(round(float(nsteps)))) + ' 1\n'
-            string += 'BABS3 0 ' + str(float((interval)))   + ' ' + str(int(round(float(nsteps)))) + ' 1\n'
-            mdtau = str( int(mdtau) - 2 )
-        elif babs > 0 and anglen == int(mdtau):
+        #if babs > 1 and anglen == int(mdtau):
+        #    string += 'BABS2 0 ' + str(float((interval)))   + ' ' + str(int(round(float(nsteps)))) + ' 1\n'
+        #    string += 'BABS3 0 ' + str(float((interval)))   + ' ' + str(int(round(float(nsteps)))) + ' 1\n'
+        #    mdtau = str( int(mdtau) - 2 )
+        #elif babs > 0 and anglen == int(mdtau):
+        if babs > 0 and anglen == int(mdtau):
             string += 'BABS2 0 ' + str(float((interval)))   + ' ' + str(int(round(float(nsteps)))) + ' 1\n'
             mdtau = str( int(mdtau) - 1 )
         if mdtau >= anglen:

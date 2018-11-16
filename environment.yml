@@ -6,6 +6,7 @@ channels:
   - pacchem
 dependencies:
   - python=2.7
+  - scipy
   - numpy
   - psutil
   - cirpy
@@ -18,3 +19,4 @@ dependencies:
   - pacchem::mess
   - pacchem::estoktp
   - pacchem::qtc
+  - pacchem::dsarrfit

@@ -64,12 +64,12 @@ def random_cute_animal():
 def main(inputfile, outputfile, configfile = ''):
     torspath   = os.path.dirname(os.path.realpath(sys.argv[0]))
     if configfile == '':
-        configfile = torspath + os.path.sep + 'configfile.txt'
-    args   = config.ARGS(  inputfile)
+        configfile = torspath + os.path.sep + 'rcd/configfile.txt'
     Config = config.CONFIG(configfile,outputfile)
-    paths  = Config.path_dic()
+    args   = config.ARGS(  inputfile)
+    paths  = {}
+    paths['g09']  = args.g09
     paths['torsscan'] = torspath
-    sys.path.insert(0, es.get_paths(paths,     'bin'))
     sys.path.insert(0, es.get_paths(paths,'torsscan'))
 
     log.info(random_cute_animal())
@@ -274,7 +274,11 @@ def main(inputfile, outputfile, configfile = ''):
                             anfr,fr1, anx,fr2,fr3,_ = thermo.get_anharm(typ, str(n+1), natom, args.nodes[0], anlevel, args.anovrwrt, reac, optlevel.split('/'),paths)
                             lines = io.read_file( 'me_files/' + typ + str(n+1) + '_fr.me')
                             io.write_file(lines, 'me_files/' + typ + str(n+1) + '_harm.me')
-                            lines = fr1 + fr2.split('End')[0] + fr3 + '\n !************************************\n'
+                            grounden = ''
+                            for line in lines.splitlines():
+                                if 'Ground' in line:
+                                    grounden += '\n' + line  + '\n End\n'
+                            lines = fr1 + fr2.split('End')[0] + fr3 + grounden + '\n !************************************\n'
                             io.write_file(lines, 'me_files/' + typ + str(n+1) + '_fr.me')
             for n, prod in enumerate(args.prods): 
                 typ = 'prod'
@@ -350,7 +354,7 @@ def main(inputfile, outputfile, configfile = ''):
         es.me_file_abs_path()
 
     if args.restart == 10:
-         io.execute([paths['bin'] + os.path.sep + 'mess', 'me_ktp.inp'])
+         io.execute(['mess', 'me_ktp.inp'])
  
     if args.reactype and io.check_file('rate.out'):
         import me_parser

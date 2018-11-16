@@ -1,6 +1,9 @@
 # RCDriver
 [//]: # (Badges)
 [![CircleCI](https://circleci.com/gh/PACChem/RCDriver.svg?style=svg)](https://circleci.com/gh/PACChem/RCDriver)
+[![Anaconda-Server Badge](https://anaconda.org/pacchem/rcdriver/badges/version.svg)](https://anaconda.org/pacchem/rcdriver)
+[![Anaconda-Server Badge](https://anaconda.org/pacchem/rcdriver/badges/platforms.svg)](https://anaconda.org/pacchem/rcdriver)
+[![Anaconda-Server Badge](https://anaconda.org/pacchem/rcdriver/badges/installer/conda.svg)](https://conda.anaconda.org/pacchem)
 
 Sarah N. Elliott, Murat Keceli, and Stephen J. Klippenstein
 
