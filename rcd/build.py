@@ -755,7 +755,6 @@ def build_estoktp(params, jobs, nreacs, nprods, tss, xyzstart, foundlist,isTS=Fa
         eststring += '  ' + str(nts) + 'TS' + eststr
     if 'Irc' in jobs:
         eststring += '\n Variational'
-        eststring += '\n MdTunnel'
     for line in esoptions.split(','):
         eststring += '\n {}'.format(line.strip())
     if nprods > 0:
