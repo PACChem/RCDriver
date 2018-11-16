@@ -4,7 +4,6 @@
 [![Anaconda-Server Badge](https://anaconda.org/pacchem/rcdriver/badges/version.svg)](https://anaconda.org/pacchem/rcdriver)
 [![Anaconda-Server Badge](https://anaconda.org/pacchem/rcdriver/badges/platforms.svg)](https://anaconda.org/pacchem/rcdriver)
 [![Anaconda-Server Badge](https://anaconda.org/pacchem/rcdriver/badges/installer/conda.svg)](https://conda.anaconda.org/pacchem)
-[![Anaconda-Server Badge](https://anaconda.org/pacchem/rcdriver/badges/platforms.svg)](https://anaconda.org/pacchem/rcdriver)
 
 Sarah N. Elliott, Murat Keceli, and Stephen J. Klippenstein
 
