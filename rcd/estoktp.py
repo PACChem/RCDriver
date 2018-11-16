@@ -24,10 +24,10 @@ def build_files(args, paths, ists=False,nodes = 1, restartts=False):
        mdtype = ''
     #Create Read, Prod, and TS objects from parameters
     params = (args.nsamps, args.abcd,nodes,args.interval,args.nsteps,args.XYZ,args.xyzstart,mdtype)
-    Reac   = build.MOL(paths, params, 'reac', args.reactype)
-    Prod   = build.MOL(paths, params, 'prod')
+    Reac   = build.MOL(params, 'reac', args.reactype)
+    Prod   = build.MOL(params, 'prod')
     params = (args.nsamps,args.abcd,nodes,args.interval,args.nsteps,args.XYZ,args.xyzstart,mdtype)
-    TS     = build.MOL(paths, params,   'ts', args.reactype) 
+    TS     = build.MOL(params,   'ts', args.reactype) 
 
     reacs = args.reacs
     prods = args.prods
@@ -128,7 +128,7 @@ def build_files(args, paths, ists=False,nodes = 1, restartts=False):
                         io.write_file(zmatstring, zmat)
                 else:
                     params = ('1', args.abcd,nodes,args.interval,args.nsteps,'False','start','MdTau' in args.jobs)
-                    TS   = build.MOL(paths, params,'ts') 
+                    TS   = build.MOL(params,'ts') 
                     TS.charge = TSprops[0]
                     TS.mult   = int(2.*TSprops[1] + 1)
                     TS.symnum = ' 1'
@@ -337,25 +337,22 @@ def execute(paths, node, back = ''):
     Requirements: PACC member on blues
     """
     g09     = get_paths(paths,  'g09')
-    gcc     = get_paths(paths,  'gcc')
-    intel   = get_paths(paths,  'intel')
-    estoktp = get_paths(paths,'estoktp')
     msg = 'Submitting EStokTP job to node {}'.format(node)
     log.debug(msg)
     if node == '0':
        # os.system('soft add +g09; soft add +gcc-5.3; /home/elliott/Packages/EStokTP/exe/estoktp.x >& estoktp.log')
-        os.system('{0}; {1}; {2}; {3}  >& estoktp.log'.format(gcc, intel, g09, estoktp))
+        os.system('{0}; estoktp.x  >& estoktp.log'.format(g09))
         msg = 'Completed'
     elif node == 'd' or node == 'debug':
         msg = 'Task skipped'
     else:
-        ssh = get_paths(paths, 'ssh')
-        os.system('exec {3} -n {4} "cd `pwd`;{0}; {1}; {2}; {5} >& estoktp.log {6}"'.format(gcc, intel, g09, ssh, node, estoktp, back))
+        ssh = 'ssh'
+        os.system('exec {1} -n {2} "cd `pwd`;{0}; estoktp.x >& estoktp.log {3}"'.format(g09, ssh, node, back))
         msg = 'Completed'
     log.info(msg)
     return
     
-def check_geoms(qtc, name, nsamps):
+def check_geoms(name, nsamps):
     """
     Checks MC geoms to make sure they are the same inchii as the starting species
     """
@@ -576,12 +573,12 @@ def run_zero(args, paths, ists=False, restartts=False):
              execute(paths, args.nodes[0])
         j, k = gather_mcgeoms(args.nodes)
         for i in range(len(args.reacs)):
-            filename = check_geoms(paths['qtc'], 'reac' + str(i+1), j[i])
+            filename = check_geoms('reac' + str(i+1), j[i])
             filename = filename.split('/')[1].split('_')[0] + '_opt_' +  filename.split('_')[1]
             filename = 'output/' + filename.replace('.xyz','.out')
             shutil.copy(filename, 'output/reac' + str(i+1) + '_opt.out')
         for i in range(len(args.prods)):
-            filename = check_geoms(paths['qtc'], 'prod' + str(i+1), j[i+2])
+            filename = check_geoms('prod' + str(i+1), j[i+2])
             filename = filename.split('/')[1].split('_')[0] + '_opt_' +  filename.split('_')[1]
             filename = 'output/' + filename.replace('.xyz','.out')
             shutil.copy(filename, 'output/prod' + str(i+1) + '_opt.out')

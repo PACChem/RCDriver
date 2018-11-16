@@ -9,12 +9,11 @@ from qtc import qctools as qc
 log = logging.getLogger(__name__)
 
 class MOL:
-    def __init__(self,paths, opts,typemol = 'reac', reactype = ''):
+    def __init__(self, opts,typemol = 'reac', reactype = ''):
         """
         MOL object is reac, prod, or ts.
         """ 
         self.typemol    = typemol
-        self.paths      = paths
 
         #OPTIONS##############################
         self.nsamps     = opts[0]    #number of MonteCarlo sampling points
@@ -126,14 +125,11 @@ class MOL:
             #######   RUN X2Z   #################
             #####################################
             tempfile = 'temp'
-            paths = self.paths
-            gcc     = paths['gcc']
-            intel   = paths['intel']
 
             if io.check_file(smilesfilename + '.xyz'):
-                os.system('{0}; {1}; {2} {3}.xyz > {4}'.format(gcc, intel, 'x2z', smilesfilename,tempfile))
+                os.system('{0} {1}.xyz > {2}'.format('x2z', smilesfilename,tempfile))
             else:
-                os.system('{0}; {1}; {2} {3}_m{4}.xyz >  {5}'.format(gcc, intel, 'x2z', smilesfilename, str(self.mult),tempfile))
+                os.system('{0} {1}_m{2}.xyz >  {3}'.format('x2z', smilesfilename, str(self.mult),tempfile))
 
             if os.stat(tempfile).st_size < 80 or 'not connected' in io.read_file(tempfile):
                 log.warning('Failed')

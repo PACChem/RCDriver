@@ -298,7 +298,7 @@ def run(args, paths, d={}):
         dH0.append(deltaH)
         if not speclist[i] == 'ts':
             log.debug('Running mess')
-            tc.run_pf('/home/ygeorgi/build/crossrate/partition_function', species + '.pf')
+            tc.run_pf('messpf', species + '.pf')
             log.info('Completed')
             log.debug('Generating thermp input.\n')
             log.info('Completed')
@@ -309,9 +309,9 @@ def run(args, paths, d={}):
             if io.check_file(species+'.pf.dat'):
                 os.rename(species + '.pf.dat','pf.dat')
             else:
-                log.error('No pf.dat produced, try soft adding gcc-5.3 and intel-16.0.0 and use Restart at: 5!')
+                log.error('No pf.dat produced, Restart at: 7!')
                 return [],[],[],[],[]
-            tc.run_thermp(inp,'thermp.dat','pf.dat','/home/elliott/Packages/therm/thermp.exe')
+            tc.run_thermp(inp,'thermp.dat','pf.dat','thermp')
             lines = io.read_file('thermp.out')
             log.info('Completed')
             deltaH298 = ' h298 final\s*([\d,\-,\.]*)'
@@ -320,7 +320,7 @@ def run(args, paths, d={}):
             log.debug('Running pac99.\n')
             shutil.copyfile('/home/elliott/Packages/therm/new.groups','./new.groups')
             shutil.copyfile(stoich + '.i97',species + '.i97')
-            tc.run_pac99(species,'/home/elliott/Packages/therm/pac99.x')
+            tc.run_pac99(species,'pac99')
             c97file = species + '.c97'
             if io.check_file(c97file):
                 c97text  = io.read_file(c97file)

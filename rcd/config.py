@@ -14,7 +14,7 @@ class CONFIG:
         else:
             logging.basicConfig(format='%(levelname)s%(message)s', level=loglevel)
         self.configfile = configfile
-        self.configfile = '/home/elliott/Packages/RCDriver/configfile.txt' 
+
     def get_paths(self):
         """
         Read lines from configfile and return them as a list
@@ -69,6 +69,7 @@ class ARGS:
         self.coresl   = '10'     #Default low number of cores is 10
         self.memh     = '200'     #Default is 200 MW
         self.meml     = '200'     #Default is 200 MW
+        self.g09      = 'soft add +g09-e.01'     #Default is 200 MW
 
         self.zedoptions   = 'internal'     #Guassian options
         self.oneoptions   = 'internal'     #Guassian options
@@ -156,6 +157,7 @@ class ARGS:
         self.memh    = get_param(self.memh     , 'Memory'       , options)
         self.meml    = get_param(self.meml     , 'Memory low'  , options)
         self.memh    = get_param(self.memh     , 'Memory high'  , options)
+        self.g09     = get_param(self.g09      , 'Gaussian'    , options)
         self.XYZ     = get_param(self.XYZ     , 'Use QTC'      , options)
         self.XYZ     = get_param(self.XYZ     , 'Use input xyz', options)
         self.xyzstart= get_param(self.xyzstart, 'Use xyz as'   , options)
