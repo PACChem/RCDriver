@@ -11,6 +11,7 @@ requirements:
        - python=2.7
     run:
       - numpy
+      - scipy
       - psutil
       - cirpy
       - pytest
@@ -22,3 +23,4 @@ requirements:
       - pacchem::mess
       - pacchem::estoktp
       - pacchem::qtc
+      - pacchem::dsarrfit
