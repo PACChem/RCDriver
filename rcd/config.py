@@ -14,6 +14,7 @@ class CONFIG:
         else:
             logging.basicConfig(format='%(levelname)s%(message)s', level=loglevel)
         self.configfile = configfile
+    
 
     def get_paths(self):
         """
@@ -157,7 +158,6 @@ class ARGS:
         self.memh    = get_param(self.memh     , 'Memory'       , options)
         self.meml    = get_param(self.meml     , 'Memory low'  , options)
         self.memh    = get_param(self.memh     , 'Memory high'  , options)
-        self.g09     = get_param(self.g09      , 'Gaussian'    , options)
         self.XYZ     = get_param(self.XYZ     , 'Use QTC'      , options)
         self.XYZ     = get_param(self.XYZ     , 'Use input xyz', options)
         self.xyzstart= get_param(self.xyzstart, 'Use xyz as'   , options)
@@ -169,6 +169,7 @@ class ARGS:
             if type(self.select[i]) ==  str:
                 self.select[i] = self.select[i].replace(' ','').split(',')
         self.oneoptions  = get_param(self.oneoptions  , 'Gaussian optim'     , options)
+        self.g09         = get_param(self.g09         , 'Gaussian'    , options)
         self.oneoptions  = get_param(self.oneoptions  , 'Level1 options'     , options)
         self.zedoptions  = get_param(self.zedoptions  , 'Level0 options'     , options)
         self.adiabatic  = get_param(self.adiabatic    , 'Adiabatic scan'     , options)
