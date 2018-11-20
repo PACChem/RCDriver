@@ -347,7 +347,8 @@ def execute(paths, node, back = ''):
         msg = 'Task skipped'
     else:
         ssh = 'ssh'
-        os.system('exec {1} -n {2} "cd `pwd`;{0}; estoktp.x >& estoktp.log {3}"'.format(g09, ssh, node, back))
+        conda_env = os.environ['CONDA_DEFAULT_ENV']
+        os.system('exec {1} -n {2} "cd `pwd`;{0}; {4}; estoktp.x >& estoktp.log {3}"'.format(g09, ssh, node, back, conda_env))
         msg = 'Completed'
     log.info(msg)
     return
