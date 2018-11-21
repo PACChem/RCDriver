@@ -348,7 +348,7 @@ def execute(paths, node, back = ''):
     else:
         ssh = 'ssh'
         conda_env = os.environ['CONDA_DEFAULT_ENV']
-        os.system('exec {1} -n {2} "cd `pwd`;{0}; {4}; estoktp.x >& estoktp.log {3}"'.format(g09, ssh, node, back, conda_env))
+        os.system('exec {1} -n {2} "cd `pwd`;{0}; conda activate {4}; estoktp.x >& estoktp.log {3}"'.format(g09, ssh, node, back, conda_env))
         msg = 'Completed'
     log.info(msg)
     return
