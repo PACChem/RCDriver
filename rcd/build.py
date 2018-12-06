@@ -137,7 +137,8 @@ class MOL:
                 log.warning('Please check that test_chem is in location: ' +  'x2z')
                 log.warning('Using OpenBabel zmat: no hindered rotors will be specified')
                 #Build openbabel zmat if x2z fails
-                atoms, measure = build_obzmat(smiles) 
+                if smiles != 'ts': 
+                    atoms, measure = build_obzmat(smiles) 
                 self.symnum    = ' 1'
                 self.ilin      = ' 0'
 

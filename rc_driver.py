@@ -269,16 +269,13 @@ def main(inputfile, outputfile, configfile = ''):
                 natom  = ob.get_natom(reac)
                 if natom > 2:
                     mult   = ob.get_mult( reac)
-                    if io.check_file('me_files/' + typ + str(n+1) + '_fr.me'): 
-                        if not 'Anh' in io.read_file('me_files/' + typ + str(n+1) + '_fr.me'):
+                    if io.check_file('me_files/' + typ + str(n+1) + '_fr.me'):
+                        mefreqs =  io.read_file('me_files/' + typ + str(n+1) + '_fr.me')
+                        if not 'Anh' in mefreqs:
                             anfr,fr1, anx,fr2,fr3,_ = thermo.get_anharm(typ, str(n+1), natom, args.nodes[0], anlevel, args.anovrwrt, reac, optlevel.split('/'),paths)
-                            lines = io.read_file( 'me_files/' + typ + str(n+1) + '_fr.me')
-                            io.write_file(lines, 'me_files/' + typ + str(n+1) + '_harm.me')
-                            grounden = ''
-                            for line in lines.splitlines():
-                                if 'Ground' in line:
-                                    grounden += '\n' + line  + '\n End\n'
-                            lines = fr1 + fr2.split('End')[0] + fr3 + grounden + '\n !************************************\n'
+                            io.write_file(mefreqs, 'me_files/' + typ + str(n+1) + '_harm.me')
+                            lines, mefreqs = mefreqs.split('ZeroEnergy')
+                            lines = fr1 + fr2.split('End')[0]  + '\n  ZeroEnergy' + mefreqs
                             io.write_file(lines, 'me_files/' + typ + str(n+1) + '_fr.me')
             for n, prod in enumerate(args.prods): 
                 typ = 'prod'
@@ -286,11 +283,12 @@ def main(inputfile, outputfile, configfile = ''):
                 if natom > 2:
                     mult   = ob.get_mult( prod)
                     if io.check_file('me_files/' + typ + str(n+1) + '_fr.me'):
-                        if not 'Anh' in io.read_file('me_files/' + typ + str(n+1) + '_fr.me'):
+                        mefreqs =  io.read_file('me_files/' + typ + str(n+1) + '_fr.me')
+                        if not 'Anh' in mefreqs:
                             anfr,fr1, anx,fr2,fr3,_ = thermo.get_anharm(typ, str(n+1), natom, args.nodes[0], anlevel, args.anovrwrt, prod, optlevel.split('/'),paths)
-                            lines = io.read_file( 'me_files/' + typ + str(n+1) + '_fr.me')
-                            io.write_file(lines, 'me_files/' + typ + str(n+1) + '_harm.me')
-                            lines = fr1 + fr2.split('End')[0] + fr3 + '\n !************************************\n'
+                            io.write_file(mefreqs, 'me_files/' + typ + str(n+1) + '_harm.me')
+                            lines, mefreqs = mefreqs.split('ZeroEnergy')
+                            lines = fr1 + fr2.split('End')[0] + '\n  ZeroEnergy' + mefreqs
                             io.write_file(lines, 'me_files/' + typ + str(n+1) + '_fr.me')
             if args.reactype and io.check_file('geoms/tsgta_l1.xyz'):
                 typ = 'ts'
@@ -299,11 +297,18 @@ def main(inputfile, outputfile, configfile = ''):
                 natom  = ob.get_natom(ts)
                 mult   = ob.get_mult( ts)
                 if io.check_file('me_files/ts_fr.me'):
-                    if not 'Anh' in io.read_file('me_files/ts_fr.me'):
+                    mefreqs = io.read_file('me_files/ts_fr.me')
+                    if not 'Anh' in mefreqs:
                         anfr,fr1, anx,fr2,fr3,_ = thermo.get_anharm(typ, str(n+1), natom, args.nodes[0], anlevel, args.anovrwrt, 'ts', optlevel.split('/'),paths)
-                        lines = io.read_file( 'me_files/' + typ +  '_fr.me')
-                        io.write_file(lines, 'me_files/' + typ + '_harm.me')
-                        lines = fr1 + fr2.split('End')[0] + fr3 + '\n End\n !************************************\n'
+                        io.write_file(mefreqs, 'me_files/' + typ + '_harm.me')
+                        lines, mefreqs = mefreqs.split('ZeroEnergy')
+                        imag = fr3.split('WellDepth')[0].split('ImaginaryFrequency[1/cm]')[1]
+                        mefreqs = mefreqs.splitlines()
+                        for i, line in enumerate(mefreqs):
+                           if 'Imaginary' in line:
+                              mefreqs[i] = '    ImaginaryFrequency[1/cm] {}'.format(imag)
+                        mefreqs = '\n'.join(mefreqs)
+                        lines = fr1 + fr2.split('End')[0] +  '\n  ZeroEnergy' + mefreqs
                         io.write_file(lines, 'me_files/' + typ + '_fr.me')
         log.info("========\nBEGIN MDHR, HL\n========\n")
         if 'kTP' in args.jobs:
