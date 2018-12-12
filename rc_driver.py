@@ -302,7 +302,7 @@ def main(inputfile, outputfile, configfile = ''):
                         anfr,fr1, anx,fr2,fr3,_ = thermo.get_anharm(typ, str(n+1), natom, args.nodes[0], anlevel, args.anovrwrt, 'ts', optlevel.split('/'),paths)
                         io.write_file(mefreqs, 'me_files/' + typ + '_harm.me')
                         lines, mefreqs = mefreqs.split('ZeroEnergy')
-                        imag = fr3.split('WellDepth')[0].split('ImaginaryFrequency[1/cm]')[1]
+                        imag = fr3.split('WellDepth')[0].split('ImaginaryFrequency[1/cm]')[1].replace('\t','').strip()
                         mefreqs = mefreqs.splitlines()
                         for i, line in enumerate(mefreqs):
                            if 'Imaginary' in line:
