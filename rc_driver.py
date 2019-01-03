@@ -267,7 +267,7 @@ def main(inputfile, outputfile, configfile = ''):
             for n, reac in enumerate(args.reacs):
                 typ = 'reac'
                 natom  = ob.get_natom(reac)
-                if natom > 2:
+                if natom > 1:
                     mult   = ob.get_mult( reac)
                     if io.check_file('me_files/' + typ + str(n+1) + '_fr.me'):
                         mefreqs =  io.read_file('me_files/' + typ + str(n+1) + '_fr.me')
@@ -280,7 +280,7 @@ def main(inputfile, outputfile, configfile = ''):
             for n, prod in enumerate(args.prods): 
                 typ = 'prod'
                 natom  = ob.get_natom(prod)
-                if natom > 2:
+                if natom > 1:
                     mult   = ob.get_mult( prod)
                     if io.check_file('me_files/' + typ + str(n+1) + '_fr.me'):
                         mefreqs =  io.read_file('me_files/' + typ + str(n+1) + '_fr.me')
